@@ -7,21 +7,14 @@ export type Student = {
   parentId?: number | null;
 };
 
-export type Teacher = {
-  id: number;
-  fullname: string;
-  phone?: string | null;
-};
-
-export type Classroom = {
-  id: number;
-  name: string;
-  tuitionFee: number;
-  teacherId?: number | null;
-};
-
 export type Parent = {
   id: number;
   fullname: string;
   phone?: string | null;
+};
+
+export type RecentStudent = {
+  name: string;
+  parent: string;
+  className: string;
 };

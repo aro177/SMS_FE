@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:7040";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5242";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
