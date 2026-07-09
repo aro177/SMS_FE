@@ -1,7 +1,7 @@
 import type { RecentStudent } from "../types";
 
 export const recentStudents: RecentStudent[] = [
-  { name: "Le Bao Anh", parent: "Le Thanh Tung", className: "Morning Yoga Basics" },
-  { name: "Do Minh Chau", parent: "Do Quynh Mai", className: "Evening Flow" },
-  { name: "Hoang Nam Phong", parent: "Hoang Viet Duc", className: "Mindful Breathing" },
+  { name: "Lê Bảo Anh", parent: "Lê Thanh Tùng", className: "Yoga nền tảng buổi sáng" },
+  { name: "Đỗ Minh Châu", parent: "Đỗ Quỳnh Mai", className: "Vận động buổi tối" },
+  { name: "Hoàng Nam Phong", parent: "Hoàng Việt Đức", className: "Thiền thở sau giờ học" },
 ];

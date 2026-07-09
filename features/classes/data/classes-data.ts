@@ -2,24 +2,24 @@ import type { ClassroomOverview } from "../types";
 
 export const classroomOverviews: ClassroomOverview[] = [
   {
-    name: "Morning Yoga Basics",
-    teacher: "Nguyen Thi Lan",
+    name: "Yoga nền tảng buổi sáng",
+    teacher: "Nguyễn Thị Lan",
     students: 28,
-    tuition: "$120",
+    tuition: "2.400.000đ",
     status: "Active",
   },
   {
-    name: "Mindful Breathing",
-    teacher: "Tran Minh Khoa",
+    name: "Thiền thở sau giờ học",
+    teacher: "Trần Minh Khoa",
     students: 18,
-    tuition: "$95",
+    tuition: "1.800.000đ",
     status: "Scheduling",
   },
   {
-    name: "Evening Flow",
-    teacher: "Pham Gia Han",
+    name: "Vận động buổi tối",
+    teacher: "Phạm Gia Hân",
     students: 22,
-    tuition: "$105",
+    tuition: "2.100.000đ",
     status: "Active",
   },
 ];
