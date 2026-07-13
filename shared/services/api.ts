@@ -4,6 +4,14 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
 };
 
+export type PagedResult<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -22,6 +30,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   const response = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
     ...options,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     headers,

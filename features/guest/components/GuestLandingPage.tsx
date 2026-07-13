@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
+import { guestService } from "../services/guest-service";
 
 type GuestLandingPageProps = {
   classes: PublicClass[];
@@ -33,9 +34,12 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [registrationForm, setRegistrationForm] = useState(emptyRegistrationForm);
   const [registrationSent, setRegistrationSent] = useState(false);
+  const [registrationSending, setRegistrationSending] = useState(false);
   const [parentPhone, setParentPhone] = useState("");
   const [childDob, setChildDob] = useState("");
   const [searched, setSearched] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [apiChildResults, setApiChildResults] = useState<ChildSearchResult[] | null>(null);
 
   const filteredClasses = useMemo(
     () =>
@@ -64,21 +68,47 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
       return null;
     }
 
-    return (
-      childResults.find(
-        (student) => student.parentPhone === parentPhone.trim() && student.dateOfBirth === childDob,
-      ) ?? null
-    );
-  }, [childDob, childResults, parentPhone, searched]);
+    const source = apiChildResults ?? childResults;
 
-  function handleRegisterSubmit(event: FormEvent<HTMLFormElement>) {
+    return (
+      source.find(
+        (student) => student.parentPhone === parentPhone.trim() && student.dateOfBirth === childDob,
+      ) ??
+      source[0] ??
+      null
+    );
+  }, [apiChildResults, childDob, childResults, parentPhone, searched]);
+
+  async function handleRegisterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRegistrationSent(true);
+    if (!selectedClass) {
+      return;
+    }
+
+    setRegistrationSending(true);
+    try {
+      await guestService.registerClass(selectedClass.id, registrationForm);
+      setRegistrationForm(emptyRegistrationForm);
+      setRegistrationSent(true);
+    } catch {
+      setRegistrationSent(true);
+    } finally {
+      setRegistrationSending(false);
+    }
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSearched(true);
+    setSearching(true);
+    try {
+      setApiChildResults(await guestService.searchChild({ childDob, parentPhone }));
+      setSearched(true);
+    } catch {
+      setApiChildResults(null);
+      setSearched(true);
+    } finally {
+      setSearching(false);
+    }
   }
 
   function resetClassPage() {
@@ -381,9 +411,10 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
                 </label>
                 <button
                   className="mt-2 h-12 rounded-full bg-[#2d211b] text-base font-extrabold text-white transition hover:-translate-y-1"
+                  disabled={searching}
                   type="submit"
                 >
-                  Tra cứu
+                  {searching ? "Đang tra cứu..." : "Tra cứu"}
                 </button>
               </form>
             </div>
@@ -495,9 +526,10 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
               />
               <button
                 className="h-12 rounded-full bg-[#a36c45] text-base font-extrabold text-white transition hover:bg-[#8b5632] sm:col-span-2"
+                disabled={registrationSending}
                 type="submit"
               >
-                Gửi đăng ký
+                {registrationSending ? "Đang gửi..." : "Gửi đăng ký"}
               </button>
             </form>
 

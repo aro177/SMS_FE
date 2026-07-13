@@ -3,9 +3,12 @@ export type Classroom = {
   name: string;
   tuitionFee: number;
   teacherId?: number | null;
+  teacherName?: string | null;
+  studentsCount?: number;
 };
 
 export type ClassroomOverview = {
+  id?: number;
   name: string;
   teacher: string;
   students: number;

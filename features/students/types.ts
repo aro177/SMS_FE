@@ -5,6 +5,9 @@ export type Student = {
   height?: number | null;
   weight?: number | null;
   parentId?: number | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  currentClass?: string | null;
 };
 
 export type Parent = {
