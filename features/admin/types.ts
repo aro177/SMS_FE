@@ -10,6 +10,7 @@ export type RegistrationRequest = {
 
 export type ScheduleEvent = {
   id: number;
+  classroomId?: number;
   className: string;
   teacher: string;
   room: string;
@@ -19,4 +20,22 @@ export type ScheduleEvent = {
   status: "confirmed" | "draft" | "conflict";
   repeatType: "fixed" | "temporary";
   color: string;
+};
+
+export type Teacher = {
+  id: number;
+  fullname: string;
+  phone?: string | null;
+  classesCount: number;
+};
+
+export type Lesson = {
+  id: number;
+  classroomId: number;
+  classroomName: string;
+  teacherId?: number | null;
+  teacherName?: string | null;
+  title: string;
+  startTime: string;
+  endTime: string;
 };

@@ -1,4 +1,7 @@
 import { AdminDashboardShell } from "@/features/admin/components/AdminDashboardShell";
+import { scheduleEvents as demoScheduleEvents } from "@/features/admin/data/admin-data";
+import { adminService } from "@/features/admin/services/admin-service";
+import type { Lesson, ScheduleEvent, Teacher } from "@/features/admin/types";
 import { classroomOverviews } from "@/features/classes/data/classes-data";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom, ClassroomOverview } from "@/features/classes/types";
@@ -11,14 +14,21 @@ import type { RecentStudent, Student } from "@/features/students/types";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const [classes, students] = await Promise.all([loadClasses(), loadStudents()]);
+  const [classes, students, teachers, scheduleEvents] = await Promise.all([
+    loadClasses(),
+    loadStudents(),
+    loadTeachers(),
+    loadScheduleEvents(),
+  ]);
 
   return (
     <AdminDashboardShell
       classes={classes}
       metrics={summaryMetrics}
+      scheduleEvents={scheduleEvents}
       setupTasks={setupTasks}
       students={students}
+      teachers={teachers}
     />
   );
 }
@@ -57,5 +67,50 @@ function mapStudentToRecentStudent(student: Student): RecentStudent {
     name: student.fullname,
     parent: student.parentName ?? "Chưa có phụ huynh",
     className: student.currentClass ?? "Chưa có lớp",
+  };
+}
+
+async function loadTeachers(): Promise<Teacher[]> {
+  try {
+    const result = await adminService.getTeachers();
+    return result.items;
+  } catch {
+    return [
+      { id: 1, fullname: "Nguyễn Thị Lan", phone: null, classesCount: 2 },
+      { id: 2, fullname: "Trần Minh Khoa", phone: null, classesCount: 3 },
+      { id: 3, fullname: "Phạm Gia Hân", phone: null, classesCount: 4 },
+    ];
+  }
+}
+
+async function loadScheduleEvents(): Promise<ScheduleEvent[]> {
+  try {
+    const result = await adminService.getLessons();
+    return result.items.map(mapLessonToScheduleEvent);
+  } catch {
+    return demoScheduleEvents;
+  }
+}
+
+function mapLessonToScheduleEvent(lesson: Lesson, index: number): ScheduleEvent {
+  const start = new Date(lesson.startTime);
+  const end = new Date(lesson.endTime);
+  const day = start.getDay();
+  const dayIndex = day === 0 ? 6 : day - 1;
+  const durationHours = Math.max(1, Math.round((end.getTime() - start.getTime()) / 3_600_000));
+  const colors = ["#a36c45", "#17b8a6", "#8b5cf6", "#f97316", "#0ea5e9", "#22c55e", "#f59e0b"];
+
+  return {
+    id: lesson.id,
+    classroomId: lesson.classroomId,
+    className: lesson.classroomName,
+    color: colors[index % colors.length],
+    dayIndex,
+    durationHours,
+    repeatType: "fixed",
+    room: "Phòng học",
+    startHour: start.getHours(),
+    status: "confirmed",
+    teacher: lesson.teacherName ?? "Chưa phân công",
   };
 }
