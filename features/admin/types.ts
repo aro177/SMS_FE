@@ -5,7 +5,7 @@ export type RegistrationRequest = {
   phone: string;
   requestedClass: string;
   submittedAt: string;
-  status: "new" | "called" | "confirmed";
+  status: "new" | "called" | "confirmed" | "rejected";
 };
 
 export type ScheduleEvent = {

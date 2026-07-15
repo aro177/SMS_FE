@@ -1,8 +1,8 @@
 export type PublicClass = {
   id: number;
   name: string;
-  subject: "Yoga" | "Thiền thở" | "Vận động";
-  ageGroup: "6-9" | "8-12" | "10-15";
+  subject: string;
+  ageGroup: string;
   ageRange: string;
   schedule: string;
   teacher: string;
@@ -28,10 +28,22 @@ export type ChildSearchForm = {
 };
 
 export type ChildSearchResult = {
+  studentId: number;
   childName: string;
   dateOfBirth: string;
   parentPhone: string;
   currentClass: string;
   attendanceRate: string;
   latestNote: string;
+};
+
+export type AttendanceHistoryItem = {
+  id: number;
+  lessonId: number;
+  lessonTitle: string;
+  classroomName: string;
+  startTime: string;
+  endTime: string;
+  status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+  note?: string | null;
 };

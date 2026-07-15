@@ -2,28 +2,25 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { registrationRequests } from "@/features/admin/data/admin-data";
 import { adminService } from "@/features/admin/services/admin-service";
 import type { RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
 import { ClassesTable } from "@/features/classes/components/ClassesTable";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { ClassroomOverview } from "@/features/classes/types";
 import { SummaryCards } from "@/features/dashboard/components/SummaryCards";
-import type { SummaryMetric } from "@/features/dashboard/types";
 import { guestService } from "@/features/guest/services/guest-service";
-import type { SetupTask } from "@/features/setup/types";
 import { RecentStudents } from "@/features/students/components/RecentStudents";
+import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent } from "@/features/students/types";
 
-type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "setup";
+type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers";
 type FilterValue = "all" | string;
 type ScheduleView = "day" | "week" | "month";
 
 type AdminDashboardShellProps = {
   classes: ClassroomOverview[];
-  metrics: SummaryMetric[];
+  registrations: RegistrationRequest[];
   scheduleEvents: ScheduleEvent[];
-  setupTasks: SetupTask[];
   students: RecentStudent[];
   teachers: Teacher[];
 };
@@ -39,6 +36,9 @@ type ScheduleFormState = {
 };
 
 type ClassFormState = {
+  ageGroup: string;
+  capacity: number;
+  description: string;
   name: string;
   teacher: string;
   students: number;
@@ -62,14 +62,13 @@ type RegistrationFormState = {
   requestedClass: string;
 };
 
-const adminTabs: { id: AdminTab; label: string; helper: string; icon: "grid" | "calendar" | "book" | "users" | "clipboard" | "teacher" | "settings" }[] = [
+const adminTabs: { id: AdminTab; label: string; helper: string; icon: "grid" | "calendar" | "book" | "users" | "clipboard" | "teacher" }[] = [
   { id: "overview", label: "Tổng quan", helper: "Theo dõi nhanh tình hình trung tâm", icon: "grid" },
   { id: "schedule", label: "Sắp xếp lịch học", helper: "Xếp giờ học theo tuần", icon: "calendar" },
   { id: "classes", label: "Quản lý lớp học", helper: "Lịch, học phí và sĩ số", icon: "book" },
   { id: "students", label: "Quản lý học viên", helper: "Thông tin con và phụ huynh", icon: "users" },
   { id: "registrations", label: "Đăng ký học", helper: "Yêu cầu mới từ cổng phụ huynh", icon: "clipboard" },
   { id: "teachers", label: "Quản lý giáo viên", helper: "Phân công lớp và lịch dạy", icon: "teacher" },
-  { id: "setup", label: "Thiết lập hệ thống", helper: "Checklist bàn giao", icon: "settings" },
 ];
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
@@ -81,6 +80,7 @@ const registrationStatusLabels: Record<RegistrationRequest["status"], string> = 
   new: "Mới",
   called: "Đã gọi",
   confirmed: "Đã xác nhận",
+  rejected: "Từ chối",
 };
 
 const repeatTypeLabels: Record<ScheduleEvent["repeatType"], string> = {
@@ -88,13 +88,18 @@ const repeatTypeLabels: Record<ScheduleEvent["repeatType"], string> = {
   temporary: "Tạm thời",
 };
 
-export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTasks, students, teachers }: AdminDashboardShellProps) {
+export function AdminDashboardShell({
+  classes,
+  registrations,
+  scheduleEvents,
+  students,
+  teachers,
+}: AdminDashboardShellProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [classItems, setClassItems] = useState<ClassroomOverview[]>(classes);
   const [studentItems, setStudentItems] = useState<RecentStudent[]>(students);
-  const [registrationItems, setRegistrationItems] = useState<RegistrationRequest[]>(registrationRequests);
+  const [registrationItems, setRegistrationItems] = useState<RegistrationRequest[]>(registrations);
   const [teacherItems, setTeacherItems] = useState<Teacher[]>(teachers);
-  const [setupItems, setSetupItems] = useState<SetupTask[]>(setupTasks);
   const [notice, setNotice] = useState("Sẵn sàng quản lý trung tâm.");
   const [classKeyword, setClassKeyword] = useState("");
   const [classStatus, setClassStatus] = useState<FilterValue>("all");
@@ -114,6 +119,7 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
     createScheduleFormState(classes[0]?.name ?? ""),
   );
   const [classFormOpen, setClassFormOpen] = useState(false);
+  const [editingClassId, setEditingClassId] = useState<number | null>(null);
   const [classForm, setClassForm] = useState<ClassFormState>(() => createClassFormState());
   const [studentFormOpen, setStudentFormOpen] = useState(false);
   const [studentForm, setStudentForm] = useState<StudentFormState>(() => createStudentFormState(classes[0]?.name ?? ""));
@@ -122,7 +128,9 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
     createRegistrationFormState(classes[0]?.name ?? ""),
   );
   const [teacherFormOpen, setTeacherFormOpen] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState<number | null>(null);
   const [teacherName, setTeacherName] = useState("");
+  const [teacherPhone, setTeacherPhone] = useState("");
 
   const filteredClasses = useMemo(
     () =>
@@ -270,7 +278,23 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
   }
 
   function openCreateClassForm() {
+    setEditingClassId(null);
     setClassForm(createClassFormState());
+    setClassFormOpen(true);
+  }
+
+  function openEditClassForm(classroom: ClassroomOverview) {
+    setEditingClassId(classroom.id ?? null);
+    setClassForm({
+      ageGroup: classroom.ageGroup ?? "",
+      capacity: classroom.capacity ?? 20,
+      description: classroom.description ?? "",
+      name: classroom.name,
+      status: classroom.status,
+      students: classroom.students,
+      teacher: classroom.teacher === "Chưa phân công" ? "" : classroom.teacher,
+      tuition: classroom.tuition,
+    });
     setClassFormOpen(true);
   }
 
@@ -278,36 +302,76 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
     event.preventDefault();
     const teacher = teacherItems.find((item) => item.fullname === classForm.teacher);
     const fallbackClass: ClassroomOverview = {
+      ageGroup: classForm.ageGroup,
+      capacity: classForm.capacity,
+      description: classForm.description,
+      id: editingClassId ?? Date.now(),
       name: classForm.name,
       teacher: classForm.teacher || "Chưa phân công",
+      teacherId: teacher?.id ?? null,
       students: classForm.students,
       tuition: classForm.tuition,
+      tuitionFee: parseCurrency(classForm.tuition),
       status: classForm.status,
     };
 
     try {
-      const saved = await classesService.createClass({
+      const payload = {
+        ageGroup: classForm.ageGroup || null,
+        capacity: classForm.capacity,
+        description: classForm.description || null,
         name: classForm.name,
         teacherId: teacher?.id ?? null,
         tuitionFee: parseCurrency(classForm.tuition),
-      });
-      setClassItems((items) => [
-        {
+      };
+
+      if (editingClassId) {
+        await classesService.updateClass(editingClassId, payload);
+        setClassItems((items) => items.map((item) => (item.id === editingClassId ? fallbackClass : item)));
+        setNotice(`Đã cập nhật lớp ${classForm.name}.`);
+      } else {
+        const saved = await classesService.createClass(payload);
+        setClassItems((items) => [
+          {
+            ageGroup: saved.ageGroup,
+            capacity: saved.capacity,
+            description: saved.description,
           id: saved.id,
           name: saved.name,
           teacher: saved.teacherName ?? (classForm.teacher || "Chưa phân công"),
+            teacherId: saved.teacherId,
           students: saved.studentsCount ?? 0,
           tuition: `${Number(saved.tuitionFee).toLocaleString("vi-VN")}đ`,
+            tuitionFee: Number(saved.tuitionFee),
           status: saved.teacherId ? "Active" : "Scheduling",
-        },
-        ...items,
-      ]);
-      setNotice(`Đã thêm lớp ${saved.name} từ backend.`);
+          },
+          ...items,
+        ]);
+        setNotice(`Đã thêm lớp ${saved.name} từ backend.`);
+      }
     } catch {
-      setClassItems((items) => [fallbackClass, ...items]);
-      setNotice(`Backend chưa sẵn sàng, đã thêm tạm lớp ${classForm.name}.`);
+      setClassItems((items) =>
+        editingClassId ? items.map((item) => (item.id === editingClassId ? fallbackClass : item)) : [fallbackClass, ...items],
+      );
+      setNotice(`Backend chưa sẵn sàng, đã cập nhật tạm lớp ${classForm.name}.`);
     }
+    setEditingClassId(null);
     setClassFormOpen(false);
+  }
+
+  async function deleteClass(classroom: ClassroomOverview) {
+    if (!classroom.id) {
+      setClassItems((items) => items.filter((item) => item.name !== classroom.name));
+      return;
+    }
+
+    try {
+      await classesService.deleteClass(classroom.id);
+      setNotice(`Đã xóa lớp ${classroom.name}.`);
+    } catch {
+      setNotice(`Backend chưa sẵn sàng, đã ẩn tạm lớp ${classroom.name}.`);
+    }
+    setClassItems((items) => items.filter((item) => item.id !== classroom.id));
   }
 
   function openCreateStudentForm() {
@@ -317,22 +381,28 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
 
   async function handleStudentSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const selectedClass = classItems.find((classroom) => classroom.name === studentForm.className);
     try {
-      if (selectedClass?.id) {
-        await guestService.registerClass(selectedClass.id, {
-          childDob: studentForm.dob,
-          childName: studentForm.name,
-          note: "Tạo từ admin",
-          parentName: studentForm.parent,
-          parentPhone: studentForm.parentPhone,
-        });
-      }
-      setNotice(`Đã thêm học viên ${studentForm.name} lên backend.`);
+      const saved = await studentsService.createStudent({
+        dob: studentForm.dob || null,
+        fullname: studentForm.name,
+        height: null,
+        parentName: studentForm.parent,
+        parentPhone: studentForm.parentPhone,
+        weight: null,
+      });
+      setStudentItems((items) => [
+        {
+          className: saved.currentClass ?? studentForm.className,
+          name: saved.fullname,
+          parent: saved.parentName ?? studentForm.parent,
+        },
+        ...items,
+      ]);
+      setNotice(`Đã tạo hồ sơ học viên chính thức cho ${studentForm.name}.`);
     } catch {
+      setStudentItems((items) => [studentForm, ...items]);
       setNotice(`Backend chưa sẵn sàng, đã thêm tạm học viên ${studentForm.name}.`);
     }
-    setStudentItems((items) => [studentForm, ...items]);
     setStudentFormOpen(false);
   }
 
@@ -370,13 +440,35 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
     setRegistrationFormOpen(false);
   }
 
-  function updateRegistrationStatus(id: number, status: RegistrationRequest["status"]) {
+  async function updateRegistrationStatus(id: number, status: RegistrationRequest["status"]) {
+    try {
+      if (status === "confirmed") {
+        await adminService.approveRegistration(id);
+      }
+
+      if (status === "rejected") {
+        await adminService.rejectRegistration(id);
+      }
+
+      setNotice(status === "confirmed" ? "Đã duyệt đăng ký." : "Đã cập nhật trạng thái đăng ký.");
+    } catch {
+      setNotice("Backend chưa sẵn sàng, đã cập nhật tạm trên giao diện.");
+    }
+
     setRegistrationItems((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
-    setNotice(status === "confirmed" ? "Đã xác nhận đăng ký." : "Đã cập nhật trạng thái đăng ký.");
   }
 
   function openCreateTeacherForm() {
+    setEditingTeacherId(null);
     setTeacherName("");
+    setTeacherPhone("");
+    setTeacherFormOpen(true);
+  }
+
+  function openEditTeacherForm(teacher: Teacher) {
+    setEditingTeacherId(teacher.id);
+    setTeacherName(teacher.fullname);
+    setTeacherPhone(teacher.phone ?? "");
     setTeacherFormOpen(true);
   }
 
@@ -385,21 +477,41 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
     if (!teacherName.trim()) {
       return;
     }
+    const payload = { fullname: teacherName.trim(), phone: teacherPhone.trim() || null };
     try {
-      const teacher = await adminService.createTeacher({ fullname: teacherName.trim(), phone: null });
-      setTeacherItems((items) => [teacher, ...items]);
-      setNotice("Đã thêm giáo viên mới lên backend.");
+      if (editingTeacherId) {
+        await adminService.updateTeacher(editingTeacherId, payload);
+        setTeacherItems((items) =>
+          items.map((item) => (item.id === editingTeacherId ? { ...item, ...payload } : item)),
+        );
+        setNotice("Đã cập nhật giáo viên lên backend.");
+      } else {
+        const teacher = await adminService.createTeacher(payload);
+        setTeacherItems((items) => [teacher, ...items]);
+        setNotice("Đã thêm giáo viên mới lên backend.");
+      }
     } catch {
-      setTeacherItems((items) => [{ id: Date.now(), fullname: teacherName.trim(), phone: null, classesCount: 0 }, ...items]);
-      setNotice("Backend chưa sẵn sàng, đã thêm tạm giáo viên mới.");
+      setTeacherItems((items) =>
+        editingTeacherId
+          ? items.map((item) => (item.id === editingTeacherId ? { ...item, ...payload } : item))
+          : [{ id: Date.now(), ...payload, classesCount: 0 }, ...items],
+      );
+      setNotice("Backend chưa sẵn sàng, đã cập nhật tạm giáo viên.");
     }
+    setEditingTeacherId(null);
     setTeacherName("");
+    setTeacherPhone("");
     setTeacherFormOpen(false);
   }
 
-  function toggleSetupTask(label: string) {
-    setSetupItems((items) => items.map((item) => (item.label === label ? { ...item, done: !item.done } : item)));
-    setNotice("Đã cập nhật checklist.");
+  async function deleteTeacher(teacher: Teacher) {
+    try {
+      await adminService.deleteTeacher(teacher.id);
+      setNotice(`Đã xóa giáo viên ${teacher.fullname}.`);
+    } catch {
+      setNotice(`Backend chưa sẵn sàng, đã ẩn tạm giáo viên ${teacher.fullname}.`);
+    }
+    setTeacherItems((items) => items.filter((item) => item.id !== teacher.id));
   }
 
   function resetFilters() {
@@ -469,12 +581,13 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
             {activeTab === "overview" ? (
               <OverviewPanel
                 classes={classItems}
-                metrics={metrics}
                 onGoToRegistrations={() => setActiveTab("registrations")}
                 onGoToSchedule={() => setActiveTab("schedule")}
                 onResetFilters={resetFilters}
                 registrations={registrationItems}
+                scheduleEvents={scheduleItems}
                 students={studentItems}
+                teachers={teacherItems}
               />
             ) : null}
 
@@ -521,6 +634,8 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
                 onKeywordChange={setClassKeyword}
                 onReset={resetFilters}
                 onStatusChange={setClassStatus}
+                onDelete={deleteClass}
+                onEdit={openEditClassForm}
                 onViewAll={() => {
                   setClassKeyword("");
                   setClassStatus("all");
@@ -558,6 +673,8 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
             {activeTab === "teachers" ? (
               <TeachersPanel
                 onAdd={openCreateTeacherForm}
+                onDelete={deleteTeacher}
+                onEdit={openEditTeacherForm}
                 onViewSchedule={(teacher) => {
                   setScheduleTeacher(teacher);
                   setActiveTab("schedule");
@@ -565,9 +682,6 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
                 }}
                 teachers={teacherItems}
               />
-            ) : null}
-            {activeTab === "setup" ? (
-              <SetupPanel onToggle={toggleSetupTask} tasks={setupItems} />
             ) : null}
           </div>
         </section>
@@ -584,7 +698,16 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
         />
       ) : null}
       {classFormOpen ? (
-        <ClassFormModal form={classForm} onChange={setClassForm} onClose={() => setClassFormOpen(false)} onSubmit={handleClassSubmit} />
+        <ClassFormModal
+          editing={editingClassId !== null}
+          form={classForm}
+          onChange={setClassForm}
+          onClose={() => {
+            setEditingClassId(null);
+            setClassFormOpen(false);
+          }}
+          onSubmit={handleClassSubmit}
+        />
       ) : null}
       {studentFormOpen ? (
         <StudentFormModal
@@ -606,8 +729,11 @@ export function AdminDashboardShell({ classes, metrics, scheduleEvents, setupTas
       ) : null}
       {teacherFormOpen ? (
         <TeacherFormModal
+          editing={editingTeacherId !== null}
           name={teacherName}
+          phone={teacherPhone}
           onChange={setTeacherName}
+          onPhoneChange={setTeacherPhone}
           onClose={() => setTeacherFormOpen(false)}
           onSubmit={handleTeacherSubmit}
         />
@@ -633,6 +759,9 @@ function createScheduleFormState(className: string): ScheduleFormState {
 
 function createClassFormState(): ClassFormState {
   return {
+    ageGroup: "",
+    capacity: 20,
+    description: "",
     name: "",
     teacher: "",
     students: 0,
@@ -748,15 +877,6 @@ function AdminTabIcon({ name }: { name: (typeof adminTabs)[number]["icon"] }) {
     );
   }
 
-  if (name === "settings") {
-    return (
-      <svg {...commonProps}>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 5 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 5a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.36.3.74.5 1.1.6h.5a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.4z" />
-      </svg>
-    );
-  }
-
   return (
     <svg {...commonProps}>
       <rect height="7" rx="1.5" width="7" x="3" y="3" />
@@ -789,23 +909,35 @@ function PanelHeader({
 
 function OverviewPanel({
   classes,
-  metrics,
   onGoToRegistrations,
   onGoToSchedule,
   onResetFilters,
   registrations,
+  scheduleEvents,
   students,
+  teachers,
 }: {
   classes: ClassroomOverview[];
-  metrics: SummaryMetric[];
   onGoToRegistrations: () => void;
   onGoToSchedule: () => void;
   onResetFilters: () => void;
   registrations: RegistrationRequest[];
+  scheduleEvents: ScheduleEvent[];
   students: RecentStudent[];
+  teachers: Teacher[];
 }) {
   const newRegistrations = registrations.filter((request) => request.status === "new").length;
   const schedulingClasses = classes.filter((classroom) => classroom.status === "Scheduling").length;
+  const activeClasses = classes.filter((classroom) => classroom.status === "Active").length;
+  const metrics = [
+    { label: "Học viên", value: `${students.length}`, trend: `${registrations.length} hồ sơ đăng ký` },
+    { label: "Lớp đang mở", value: `${activeClasses}`, trend: `${schedulingClasses} lớp cần xếp lịch` },
+    { label: "Giáo viên", value: `${teachers.length}`, trend: `${scheduleEvents.length} tiết đã xếp` },
+    { label: "Đăng ký chờ duyệt", value: `${newRegistrations}`, trend: newRegistrations > 0 ? "Cần xử lý" : "Đã sạch hàng chờ" },
+  ];
+  const latestRegistration = registrations[0];
+  const crowdedClass = [...classes].sort((a, b) => b.students - a.students)[0];
+  const nextSchedule = scheduleEvents[0];
 
   return (
     <div className="grid gap-5">
@@ -838,9 +970,22 @@ function OverviewPanel({
         <div className="rounded-3xl border border-[#ead8ca] bg-white p-5">
           <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#a36c45]">Hoạt động gần đây</p>
           <div className="mt-4 grid gap-3">
-            <ActivityLine title="Phụ huynh gửi đăng ký" description="Minh Anh muốn tham gia Yoga nền tảng buổi sáng." />
-            <ActivityLine title="Lớp gần đầy chỗ" description="Yoga nền tảng buổi sáng còn 6 chỗ." />
-            <ActivityLine title="Lịch cần kiểm tra" description="Thiền kể chuyện đang báo trùng phòng." />
+            <ActivityLine
+              title="Đăng ký mới nhất"
+              description={
+                latestRegistration
+                  ? `${latestRegistration.childName} muốn tham gia ${latestRegistration.requestedClass}.`
+                  : "Chưa có đăng ký mới từ cổng phụ huynh."
+              }
+            />
+            <ActivityLine
+              title="Lớp đông học viên"
+              description={crowdedClass ? `${crowdedClass.name} đang có ${crowdedClass.students} học viên.` : "Chưa có dữ liệu lớp học."}
+            />
+            <ActivityLine
+              title="Tiết học gần nhất"
+              description={nextSchedule ? `${nextSchedule.className} với ${nextSchedule.teacher}.` : "Chưa có lịch học nào được xếp."}
+            />
           </div>
         </div>
       </section>
@@ -1172,34 +1317,46 @@ function ScheduleFormModal({
 }
 
 function ClassFormModal({
+  editing,
   form,
   onChange,
   onClose,
   onSubmit,
 }: {
+  editing: boolean;
   form: ClassFormState;
   onChange: (form: ClassFormState) => void;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <AdminModal onClose={onClose} subtitle="Thêm lớp học" title="Thông tin lớp">
+    <AdminModal onClose={onClose} subtitle={editing ? "Cập nhật lớp học" : "Thêm lớp học"} title="Thông tin lớp">
       <form className="grid gap-4" onSubmit={onSubmit}>
         <TextField label="Tên lớp" onChange={(value) => onChange({ ...form, name: value })} required value={form.name} />
         <TextField label="Giáo viên" onChange={(value) => onChange({ ...form, teacher: value })} required value={form.teacher} />
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
-            Số học viên
+            Sức chứa
             <input
               className="h-11 rounded-2xl border border-[#e3d6ca] bg-white px-4 text-sm font-semibold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
-              min={0}
-              onChange={(event) => onChange({ ...form, students: Number(event.target.value) })}
+              min={1}
+              onChange={(event) => onChange({ ...form, capacity: Number(event.target.value) })}
               type="number"
-              value={form.students}
+              value={form.capacity}
             />
           </label>
           <TextField label="Học phí" onChange={(value) => onChange({ ...form, tuition: value })} placeholder="2.000.000đ" required value={form.tuition} />
         </div>
+        <TextField label="Độ tuổi" onChange={(value) => onChange({ ...form, ageGroup: value })} placeholder="6 - 9 tuổi" value={form.ageGroup} />
+        <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
+          Mô tả lớp
+          <textarea
+            className="min-h-24 rounded-2xl border border-[#e3d6ca] bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
+            onChange={(event) => onChange({ ...form, description: event.target.value })}
+            placeholder="Mô tả ngắn để phụ huynh hiểu lớp học"
+            value={form.description}
+          />
+        </label>
         <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
           Trạng thái
           <select
@@ -1212,7 +1369,7 @@ function ClassFormModal({
             <option value="Paused">Tạm dừng</option>
           </select>
         </label>
-        <ModalActions onClose={onClose} submitLabel="Thêm lớp" />
+        <ModalActions onClose={onClose} submitLabel={editing ? "Lưu thay đổi" : "Thêm lớp"} />
       </form>
     </AdminModal>
   );
@@ -1317,21 +1474,28 @@ function RegistrationFormModal({
 }
 
 function TeacherFormModal({
+  editing,
   name,
   onChange,
   onClose,
+  onPhoneChange,
   onSubmit,
+  phone,
 }: {
+  editing: boolean;
   name: string;
   onChange: (name: string) => void;
   onClose: () => void;
+  onPhoneChange: (phone: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  phone: string;
 }) {
   return (
-    <AdminModal onClose={onClose} subtitle="Thêm giáo viên" title="Thông tin giáo viên">
+    <AdminModal onClose={onClose} subtitle={editing ? "Cập nhật giáo viên" : "Thêm giáo viên"} title="Thông tin giáo viên">
       <form className="grid gap-4" onSubmit={onSubmit}>
         <TextField label="Tên giáo viên" onChange={onChange} required value={name} />
-        <ModalActions onClose={onClose} submitLabel="Thêm giáo viên" />
+        <TextField label="Số điện thoại" onChange={onPhoneChange} placeholder="090..." value={phone} />
+        <ModalActions onClose={onClose} submitLabel={editing ? "Lưu thay đổi" : "Thêm giáo viên"} />
       </form>
     </AdminModal>
   );
@@ -1411,6 +1575,8 @@ function ClassesPanel({
   classStatus,
   classes,
   onAdd,
+  onDelete,
+  onEdit,
   onKeywordChange,
   onReset,
   onStatusChange,
@@ -1420,6 +1586,8 @@ function ClassesPanel({
   classStatus: string;
   classes: ClassroomOverview[];
   onAdd: () => void;
+  onDelete: (classroom: ClassroomOverview) => void;
+  onEdit: (classroom: ClassroomOverview) => void;
   onKeywordChange: (value: string) => void;
   onReset: () => void;
   onStatusChange: (value: string) => void;
@@ -1455,7 +1623,7 @@ function ClassesPanel({
           value={classStatus}
         />
       </FilterBar>
-      <ClassesTable classes={classes} onViewAll={onViewAll} />
+      <ClassesTable classes={classes} onDelete={onDelete} onEdit={onEdit} onViewAll={onViewAll} />
     </div>
   );
 }
@@ -1554,6 +1722,7 @@ function RegistrationsPanel({
             { label: "Mới", value: "new" },
             { label: "Đã gọi", value: "called" },
             { label: "Đã xác nhận", value: "confirmed" },
+            { label: "Từ chối", value: "rejected" },
           ]}
           value={status}
         />
@@ -1598,6 +1767,9 @@ function RegistrationsPanel({
                       <button className="rounded-full bg-[#a36c45] px-3 py-1 text-xs font-extrabold text-white transition hover:bg-[#8b5632]" onClick={() => onUpdateStatus(request.id, "confirmed")} type="button">
                         Xác nhận
                       </button>
+                      <button className="rounded-full border border-[#efb5a8] px-3 py-1 text-xs font-extrabold text-[#9b3f2c] transition hover:bg-[#fff1ee]" onClick={() => onUpdateStatus(request.id, "rejected")} type="button">
+                        Từ chối
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -1612,10 +1784,14 @@ function RegistrationsPanel({
 
 function TeachersPanel({
   onAdd,
+  onDelete,
+  onEdit,
   onViewSchedule,
   teachers,
 }: {
   onAdd: () => void;
+  onDelete: (teacher: Teacher) => void;
+  onEdit: (teacher: Teacher) => void;
   onViewSchedule: (teacher: string) => void;
   teachers: Teacher[];
 }) {
@@ -1634,52 +1810,33 @@ function TeachersPanel({
         {teachers.map((teacher) => (
           <article className="rounded-3xl border border-[#ead8ca] bg-[#fffaf5] p-5" key={teacher.id}>
             <p className="text-xl font-extrabold">{teacher.fullname}</p>
+            {teacher.phone ? <p className="mt-1 text-sm font-bold text-[#8b5632]">{teacher.phone}</p> : null}
             <p className="mt-2 text-sm leading-6 text-[#725e51]">{teacher.classesCount} lớp đang phụ trách</p>
-            <button
-              className="mt-4 rounded-2xl bg-white px-3 py-2 text-sm font-bold text-[#8b5632] transition hover:bg-[#f7e6d8]"
-              onClick={() => onViewSchedule(teacher.fullname)}
-              type="button"
-            >
-              Xem lịch tuần
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className="rounded-2xl bg-white px-3 py-2 text-sm font-bold text-[#8b5632] transition hover:bg-[#f7e6d8]"
+                onClick={() => onViewSchedule(teacher.fullname)}
+                type="button"
+              >
+                Xem lịch tuần
+              </button>
+              <button
+                className="rounded-2xl border border-[#d9bda8] px-3 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-white"
+                onClick={() => onEdit(teacher)}
+                type="button"
+              >
+                Sửa
+              </button>
+              <button
+                className="rounded-2xl border border-[#efb5a8] px-3 py-2 text-sm font-bold text-[#9b3f2c] transition hover:bg-white"
+                onClick={() => onDelete(teacher)}
+                type="button"
+              >
+                Xóa
+              </button>
+            </div>
           </article>
         ))}
-      </section>
-    </div>
-  );
-}
-
-function SetupPanel({ onToggle, tasks }: { onToggle: (label: string) => void; tasks: SetupTask[] }) {
-  return (
-    <div className="grid gap-4">
-      <PanelHeader
-        action={
-          <button
-            className="h-10 rounded-full border border-[#d9bda8] bg-white px-4 text-sm font-extrabold text-[#6f4b34] transition hover:bg-[#f7e6d8]"
-            onClick={() => tasks.filter((task) => !task.done).forEach((task) => onToggle(task.label))}
-            type="button"
-          >
-            Đánh dấu xong
-          </button>
-        }
-        description="Theo dõi các việc cần hoàn thiện trước khi bàn giao."
-        title="Thiết lập hệ thống"
-      />
-      <section className="rounded-lg border border-[#ead8ca] bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#2d211b]">Việc cần hoàn thiện</h2>
-        <div className="mt-4 flex flex-col gap-3 text-sm">
-          {tasks.map((task) => (
-            <label className="flex items-center gap-3 text-[#2d211b]" key={task.label}>
-              <input
-                checked={task.done}
-                className="size-4 accent-[#a36c45]"
-                onChange={() => onToggle(task.label)}
-                type="checkbox"
-              />
-              {task.label}
-            </label>
-          ))}
-        </div>
       </section>
     </div>
   );

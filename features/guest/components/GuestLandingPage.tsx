@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import type { ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
+import type { AttendanceHistoryItem, ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
 import { guestService } from "../services/guest-service";
 
 type GuestLandingPageProps = {
@@ -10,8 +10,8 @@ type GuestLandingPageProps = {
 };
 
 type GuestTab = "classes" | "search";
-type SubjectFilter = "all" | PublicClass["subject"];
-type AgeFilter = "all" | PublicClass["ageGroup"];
+type SubjectFilter = "all" | string;
+type AgeFilter = "all" | string;
 type PriceFilter = "all" | PublicClass["priceTier"];
 
 const CLASSES_PER_PAGE = 3;
@@ -40,6 +40,7 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
   const [apiChildResults, setApiChildResults] = useState<ChildSearchResult[] | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceHistoryItem[]>([]);
 
   const filteredClasses = useMemo(
     () =>
@@ -62,6 +63,8 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
     visibleClasses[0] ??
     filteredClasses[0] ??
     classes[0];
+  const subjectOptions = useMemo(() => Array.from(new Set(classes.map((classroom) => classroom.subject))), [classes]);
+  const ageOptions = useMemo(() => Array.from(new Set(classes.map((classroom) => classroom.ageGroup))), [classes]);
 
   const searchResult = useMemo(() => {
     if (!searched) {
@@ -101,10 +104,17 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
     event.preventDefault();
     setSearching(true);
     try {
-      setApiChildResults(await guestService.searchChild({ childDob, parentPhone }));
+      const results = await guestService.searchChild({ childDob, parentPhone });
+      setApiChildResults(results);
+      if (results[0]?.studentId) {
+        setAttendanceHistory(await guestService.getAttendanceHistory(results[0].studentId));
+      } else {
+        setAttendanceHistory([]);
+      }
       setSearched(true);
     } catch {
       setApiChildResults(null);
+      setAttendanceHistory([]);
       setSearched(true);
     } finally {
       setSearching(false);
@@ -225,9 +235,11 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
                         value={subjectFilter}
                       >
                         <option value="all">Tất cả</option>
-                        <option value="Yoga">Yoga</option>
-                        <option value="Thiền thở">Thiền thở</option>
-                        <option value="Vận động">Vận động</option>
+                        {subjectOptions.map((subject) => (
+                          <option key={subject} value={subject}>
+                            {subject}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="grid gap-1.5 text-sm font-bold text-[#6f4b34]">
@@ -241,9 +253,11 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
                         value={ageFilter}
                       >
                         <option value="all">Tất cả</option>
-                        <option value="6-9">6 - 9 tuổi</option>
-                        <option value="8-12">8 - 12 tuổi</option>
-                        <option value="10-15">10 - 15 tuổi</option>
+                        {ageOptions.map((age) => (
+                          <option key={age} value={age}>
+                            {age}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="grid gap-1.5 text-sm font-bold text-[#6f4b34]">
@@ -443,6 +457,31 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
                     <p className="rounded-3xl bg-[#f2dfcf] p-5 text-base font-bold leading-7 text-[#8b5632]">
                       {searchResult.latestNote}
                     </p>
+                    <div className="rounded-3xl bg-white p-5">
+                      <p className="text-lg font-extrabold">Lịch sử điểm danh</p>
+                      <div className="mt-3 grid gap-2">
+                        {attendanceHistory.length > 0 ? (
+                          attendanceHistory.slice(0, 6).map((item) => (
+                            <div className="rounded-2xl border border-[#ead8ca] px-4 py-3" key={item.id}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="font-extrabold">{item.lessonTitle || item.classroomName}</p>
+                                <span className="rounded-full bg-[#fff5ed] px-3 py-1 text-xs font-extrabold text-[#8b5632]">
+                                  {attendanceStatusLabel(item.status)}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-[#725e51]">
+                                {formatDateTime(item.startTime)} - {formatTime(item.endTime)}
+                              </p>
+                              {item.note ? <p className="mt-1 text-sm font-bold text-[#8b5632]">{item.note}</p> : null}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="rounded-2xl bg-[#fffaf5] p-4 text-sm font-bold text-[#8b5632]">
+                            Chưa có dữ liệu điểm danh chi tiết.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <p className="mt-5 rounded-3xl bg-white p-6 text-base font-bold text-[#8b5632]">
@@ -543,4 +582,31 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
       ) : null}
     </main>
   );
+}
+
+function attendanceStatusLabel(status: AttendanceHistoryItem["status"]) {
+  const labels: Record<AttendanceHistoryItem["status"], string> = {
+    ABSENT: "Vắng",
+    EXCUSED: "Có phép",
+    LATE: "Đi muộn",
+    PRESENT: "Có mặt",
+  };
+
+  return labels[status];
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }

@@ -1,12 +1,10 @@
 import { AdminDashboardShell } from "@/features/admin/components/AdminDashboardShell";
-import { scheduleEvents as demoScheduleEvents } from "@/features/admin/data/admin-data";
+import { registrationRequests, scheduleEvents as demoScheduleEvents } from "@/features/admin/data/admin-data";
 import { adminService } from "@/features/admin/services/admin-service";
-import type { Lesson, ScheduleEvent, Teacher } from "@/features/admin/types";
+import type { Lesson, RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
 import { classroomOverviews } from "@/features/classes/data/classes-data";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom, ClassroomOverview } from "@/features/classes/types";
-import { summaryMetrics } from "@/features/dashboard/data/dashboard-data";
-import { setupTasks } from "@/features/setup/data/setup-data";
 import { recentStudents } from "@/features/students/data/students-data";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent, Student } from "@/features/students/types";
@@ -14,23 +12,31 @@ import type { RecentStudent, Student } from "@/features/students/types";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const [classes, students, teachers, scheduleEvents] = await Promise.all([
+  const [classes, students, teachers, scheduleEvents, registrations] = await Promise.all([
     loadClasses(),
     loadStudents(),
     loadTeachers(),
     loadScheduleEvents(),
+    loadRegistrations(),
   ]);
 
   return (
     <AdminDashboardShell
       classes={classes}
-      metrics={summaryMetrics}
+      registrations={registrations}
       scheduleEvents={scheduleEvents}
-      setupTasks={setupTasks}
       students={students}
       teachers={teachers}
     />
   );
+}
+
+async function loadRegistrations(): Promise<RegistrationRequest[]> {
+  try {
+    return await adminService.getRegistrations();
+  } catch {
+    return registrationRequests;
+  }
 }
 
 async function loadClasses(): Promise<ClassroomOverview[]> {
@@ -56,9 +62,14 @@ function mapClassroomToOverview(classroom: Classroom): ClassroomOverview {
     id: classroom.id,
     name: classroom.name,
     teacher: classroom.teacherName ?? "Chưa phân công",
+    teacherId: classroom.teacherId,
     students: classroom.studentsCount ?? 0,
     tuition: `${Number(classroom.tuitionFee).toLocaleString("vi-VN")}đ`,
+    tuitionFee: Number(classroom.tuitionFee),
     status: classroom.teacherId ? "Active" : "Scheduling",
+    ageGroup: classroom.ageGroup,
+    description: classroom.description,
+    capacity: classroom.capacity,
   };
 }
 

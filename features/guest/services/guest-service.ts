@@ -1,5 +1,5 @@
 import { api } from "@/shared/services/api";
-import type { ChildSearchForm, ChildSearchResult, ClassRegistrationForm } from "../types";
+import type { AttendanceHistoryItem, ChildSearchForm, ChildSearchResult, ClassRegistrationForm } from "../types";
 
 export const guestService = {
   registerClass: (classId: number, form: ClassRegistrationForm) =>
@@ -10,4 +10,6 @@ export const guestService = {
         form.childDob,
       )}`,
     ),
+  getAttendanceHistory: (studentId: number) =>
+    api.get<AttendanceHistoryItem[]>(`/api/attendances/student/${studentId}`),
 };

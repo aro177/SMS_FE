@@ -140,6 +140,7 @@ export const publicClasses: PublicClass[] = [
 
 export const demoChildResults: ChildSearchResult[] = [
   {
+    studentId: 1,
     childName: "Lê Bảo Anh",
     dateOfBirth: "2016-08-12",
     parentPhone: "0901234567",
@@ -148,6 +149,7 @@ export const demoChildResults: ChildSearchResult[] = [
     latestNote: "Tuần này con tập trung tốt. Phụ huynh nhắc con mang bình nước.",
   },
   {
+    studentId: 2,
     childName: "Đỗ Minh Châu",
     dateOfBirth: "2014-04-22",
     parentPhone: "0912345678",

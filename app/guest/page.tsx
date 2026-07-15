@@ -22,28 +22,26 @@ async function loadPublicClasses(): Promise<PublicClass[]> {
 }
 
 function mapClassroomToPublicClass(classroom: Classroom, index: number): PublicClass {
-  const subjectOptions: PublicClass["subject"][] = ["Yoga", "Thiền thở", "Vận động"];
-  const ageOptions: { group: PublicClass["ageGroup"]; range: string }[] = [
-    { group: "6-9", range: "6 - 9 tuổi" },
-    { group: "8-12", range: "8 - 12 tuổi" },
-    { group: "10-15", range: "10 - 15 tuổi" },
-  ];
-  const subject = subjectOptions[index % subjectOptions.length];
-  const age = ageOptions[index % ageOptions.length];
   const priceValue = Number(classroom.tuitionFee);
+  const capacity = classroom.capacity ?? 20;
+  const studentsCount = classroom.studentsCount ?? 0;
+  const seatsLeft = Math.max(0, capacity - studentsCount);
+  const ageRange = classroom.ageGroup || "Liên hệ trung tâm";
 
   return {
     id: classroom.id,
-    ageGroup: age.group,
-    ageRange: age.range,
-    description: "Lớp đang mở tại trung tâm, phù hợp để con rèn luyện sự tập trung và vận động nhẹ nhàng.",
-    highlight: index === 0 ? "Bán chạy" : index % 2 === 0 ? "Lớp mới" : "Còn chỗ",
+    ageGroup: ageRange,
+    ageRange,
+    description:
+      classroom.description ??
+      "Lớp đang mở tại trung tâm, phù hợp để con rèn luyện sự tập trung và vận động nhẹ nhàng.",
+    highlight: index === 0 || studentsCount >= capacity * 0.7 ? "Bán chạy" : index % 2 === 0 ? "Lớp mới" : "Còn chỗ",
     name: classroom.name,
     priceTier: priceValue < 2_000_000 ? "under2m" : priceValue <= 2_500_000 ? "2mto25m" : "over25m",
     priceValue,
     schedule: "Liên hệ trung tâm",
-    seatsLeft: Math.max(0, 20 - (classroom.studentsCount ?? 0)),
-    subject,
+    seatsLeft,
+    subject: classroom.name,
     teacher: classroom.teacherName ?? "Chưa phân công",
     tuition: `${priceValue.toLocaleString("vi-VN")}đ / tháng`,
   };
