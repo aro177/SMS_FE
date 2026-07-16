@@ -3,13 +3,30 @@ import { demoChildResults, publicClasses } from "@/features/guest/data/guest-dat
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom } from "@/features/classes/types";
 import type { PublicClass } from "@/features/guest/types";
+import { getUser } from '@/utils/supabase/queries';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = "force-dynamic";
 
 export default async function GuestPage() {
   const classes = await loadPublicClasses();
 
-  return <GuestLandingPage childResults={demoChildResults} classes={classes} />;
+  const supabase = await createClient();
+  const [user] = await Promise.all([getUser(supabase)]);
+
+  let hasUser = true;
+  if(!user) {
+    hasUser = false;
+  }
+
+  let userRole = user?.app_metadata?.role;
+
+  return <GuestLandingPage
+      childResults={demoChildResults}
+      classes={classes}
+      hasUser={hasUser}
+      userRole={userRole}/>;
 }
 
 async function loadPublicClasses(): Promise<PublicClass[]> {

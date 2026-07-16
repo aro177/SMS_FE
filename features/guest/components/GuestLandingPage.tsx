@@ -7,6 +7,8 @@ import { guestService } from "../services/guest-service";
 type GuestLandingPageProps = {
   classes: PublicClass[];
   childResults: ChildSearchResult[];
+  hasUser: boolean | null;
+  userRole: string | null;
 };
 
 type GuestTab = "classes" | "search";
@@ -24,7 +26,7 @@ const emptyRegistrationForm: ClassRegistrationForm = {
   note: "",
 };
 
-export function GuestLandingPage({ classes, childResults }: GuestLandingPageProps) {
+export function GuestLandingPage({ classes, childResults, hasUser, userRole }: GuestLandingPageProps) {
   const [activeTab, setActiveTab] = useState<GuestTab>("classes");
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? 0);
   const [subjectFilter, setSubjectFilter] = useState<SubjectFilter>("all");
@@ -41,6 +43,11 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
   const [searching, setSearching] = useState(false);
   const [apiChildResults, setApiChildResults] = useState<ChildSearchResult[] | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceHistoryItem[]>([]);
+  const managementHref = !hasUser
+      ? "/signin"
+      : userRole === "ADMIN"
+          ? "/admin"
+          : "/teacher";
 
   const filteredClasses = useMemo(
     () =>
@@ -175,11 +182,12 @@ export function GuestLandingPage({ classes, childResults }: GuestLandingPageProp
           </div>
 
           <a
-            className="hidden rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:inline-flex"
-            href="/admin"
+              className="hidden rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:inline-flex"
+              href={managementHref}
           >
-            Quản lý
+            {hasUser ? "Quản lý" : "Đăng nhập"}
           </a>
+
         </header>
 
         {activeTab === "classes" ? (

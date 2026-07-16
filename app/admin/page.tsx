@@ -8,10 +8,20 @@ import type { Classroom, ClassroomOverview } from "@/features/classes/types";
 import { recentStudents } from "@/features/students/data/students-data";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent, Student } from "@/features/students/types";
+import { getUser } from '@/utils/supabase/queries';
+import { redirect } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
+  const supabase = await createClient();
+  const [user] = await Promise.all([getUser(supabase)]);
+
+  if (!user) {
+    return redirect('/signin');
+  }
+
   const [classes, students, teachers, scheduleEvents, registrations] = await Promise.all([
     loadClasses(),
     loadStudents(),
