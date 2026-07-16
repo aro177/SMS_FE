@@ -3,6 +3,7 @@ export type TeacherOption = {
   fullname: string;
   phone?: string | null;
   classesCount: number;
+  authUserId?: string | null;
 };
 
 export type TeacherLesson = {

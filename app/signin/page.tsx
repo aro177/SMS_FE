@@ -1,4 +1,3 @@
-import {AdminDashboardShell} from "@/features/admin/components/AdminDashboardShell";
 import PasswordSignIn from "@/features/auth/components/SignIn";
 
 export default async function AdminPage() {

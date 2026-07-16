@@ -14,7 +14,6 @@ export default function PasswordSignIn({
                                            isAdmin = false
                                        }: PasswordSignInProps) {
     const router = useRouter();
-    const  supabase  = createClient();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
@@ -26,6 +25,7 @@ export default function PasswordSignIn({
             const formData = new FormData(e.currentTarget);
             const email = String(formData.get('email') || '').trim();
             const password = String(formData.get('password') || '').trim();
+            const supabase = createClient();
 
             const { data, error } = await supabase.auth.signInWithPassword({
                 email,

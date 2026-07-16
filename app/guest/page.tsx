@@ -4,7 +4,6 @@ import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom } from "@/features/classes/types";
 import type { PublicClass } from "@/features/guest/types";
 import { getUser } from '@/utils/supabase/queries';
-import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = "force-dynamic";
@@ -12,15 +11,15 @@ export const dynamic = "force-dynamic";
 export default async function GuestPage() {
   const classes = await loadPublicClasses();
 
-  const supabase = await createClient();
-  const [user] = await Promise.all([getUser(supabase)]);
+  const hasSupabaseConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const user = hasSupabaseConfig ? await getUser(await createClient()) : null;
 
   let hasUser = true;
   if(!user) {
     hasUser = false;
   }
 
-  let userRole = user?.app_metadata?.role;
+  const userRole = user?.app_metadata?.role;
 
   return <GuestLandingPage
       childResults={demoChildResults}

@@ -15,10 +15,10 @@ import { createClient } from '@/utils/supabase/server';
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const supabase = await createClient();
-  const [user] = await Promise.all([getUser(supabase)]);
+  const hasSupabaseConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const user = hasSupabaseConfig ? await getUser(await createClient()) : null;
 
-  if (!user) {
+  if (hasSupabaseConfig && !user) {
     return redirect('/signin');
   }
 
