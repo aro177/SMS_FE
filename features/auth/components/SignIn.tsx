@@ -58,15 +58,24 @@ export default function PasswordSignIn({
         }
     };
 
-    const submitButtonClassName = isAdmin
-        ? 'bg-gradient-to-r from-slate-900 via-blue-950 to-slate-950 text-white hover:from-slate-950 hover:via-blue-950 hover:to-slate-900'
-        : '';
-
     return (
-        <div>
+        <main className="grid min-h-dvh place-items-center bg-[radial-gradient(circle_at_top_left,#fff8ef_0,#fbefe5_36%,#f6e7dc_100%)] px-4 py-8 text-[#2d211b]">
+            <section className="w-full max-w-md rounded-3xl border border-[#ead8ca] bg-white/90 p-6 shadow-[0_24px_70px_rgba(123,82,52,0.16)] backdrop-blur md:p-7">
+                <div className="mb-6 text-center">
+                    <p className="text-sm font-extrabold uppercase tracking-[0.2em] text-[#a36c45]">
+                        An Nhiên Kids
+                    </p>
+                    <h1 className="mt-3 text-3xl font-extrabold tracking-tight">
+                        Đăng nhập hệ thống
+                    </h1>
+                    <p className="mt-2 text-sm leading-6 text-[#725e51]">
+                        {isAdmin ? "Truy cập khu quản lý trung tâm." : "Giáo viên đăng nhập để xem lịch dạy và điểm danh."}
+                    </p>
+                </div>
+
             <form
                 noValidate={true}
-                className="mb-4"
+                className="grid gap-4"
                 onSubmit={(e) => handleSubmit(e)}
             >
                 <input
@@ -74,16 +83,14 @@ export default function PasswordSignIn({
                     name="isAdmin"
                     value={isAdmin ? 'true' : 'false'}
                 />
-                <div className="grid gap-2">
-                    <div className="grid gap-1">
+                    <div className="grid gap-4">
                         <label
-                            className={`text-sm font-medium ${isAdmin ? 'text-foreground' : 'text-[#3A4163]'}`}
+                            className="grid gap-2 text-sm font-extrabold text-[#6f4b34]"
                             htmlFor="email"
                         >
                             Email
-                        </label>
                         <input
-                            className="mr-2.5 mb-2 h-full min-h-[44px] w-full px-4 py-3"
+                            className="h-12 rounded-2xl border border-[#e3d6ca] bg-[#fffaf5] px-4 text-base font-semibold outline-none transition placeholder:text-[#b0927c] focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
                             id="email"
                             placeholder="name@example.com"
                             type="email"
@@ -92,13 +99,12 @@ export default function PasswordSignIn({
                             autoComplete="email"
                             autoCorrect="off"
                         />
+                        </label>
                         <label
-                            className={`mt-2 text-sm font-medium ${isAdmin ? 'text-foreground' : 'text-[#3A4163]'}`}
+                            className="grid gap-2 text-sm font-extrabold text-[#6f4b34]"
                             htmlFor="password"
                         >
                             Mật khẩu
-                        </label>
-                        {/* Password input with visibility toggle */}
                         <div className="relative">
                             <input
                                 id="password"
@@ -106,23 +112,24 @@ export default function PasswordSignIn({
                                 type={showPassword ? 'text' : 'password'}
                                 name="password"
                                 autoComplete="current-password"
-                                className="mr-2.5 mb-2 h-full min-h-[44px] w-full px-4 py-3 pr-10"
+                                className="h-12 w-full rounded-2xl border border-[#e3d6ca] bg-[#fffaf5] px-4 pr-12 text-base font-semibold outline-none transition placeholder:text-[#b0927c] focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
                             />
                             <button
                                 type="button"
                                 tabIndex={-1}
                                 onClick={() => setShowPassword((prev) => !prev)}
-                                className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-400 hover:text-gray-700 focus:outline-none"
+                                className="absolute top-1/2 right-3 grid size-9 -translate-y-1/2 place-items-center rounded-full text-[#8b5632] transition hover:bg-[#f2dfcf]"
                                 aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                             >
-                                {showPassword ? <Eye size={22} /> : <EyeOff size={22} />}
+                                {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                             </button>
                         </div>
+                        </label>
                     </div>
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className={`mt-2 flex h-[unset] w-full items-center justify-center rounded-lg px-4 py-4 text-sm font-medium ${submitButtonClassName}`}
+                        className="mt-2 flex h-12 w-full items-center justify-center rounded-full bg-[#a36c45] px-5 text-base font-extrabold text-white shadow-[0_16px_34px_rgba(163,108,69,0.24)] transition hover:-translate-y-0.5 hover:bg-[#8b5632] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {isSubmitting ? (
                             <svg
@@ -147,33 +154,28 @@ export default function PasswordSignIn({
                             'Đăng nhập'
                         )}
                     </button>
-                </div>
-                {/* Forgot password and register links */}
-                <div className="mt-2">
-                    <p>
+                <div className="flex flex-col items-center gap-2 pt-1 text-sm font-bold">
                         <a
                             href={
                                 isAdmin
                                     ? '/dashboard/signin/forgot_password'
                                     : '/signin/forgot_password'
                             }
-                            className={`text-sm font-medium ${isAdmin ? 'text-foreground hover:text-primary' : 'text-[#3A4163] hover:text-[#5AA8D6]'}`}
+                            className="text-[#8b5632] transition hover:text-[#a36c45] hover:underline"
                         >
                             Quên mật khẩu?
                         </a>
-                    </p>
                     {!isAdmin && (
-                        <p>
-                            <a
-                                href="/register-org"
-                                className="text-sm font-medium text-[#3A4163] hover:text-[#5AA8D6]"
-                            >
-                                Chưa có tài khoản? Đăng ký
-                            </a>
-                        </p>
+                        <a
+                            href="/register-org"
+                            className="text-[#725e51] transition hover:text-[#a36c45] hover:underline"
+                        >
+                            Chưa có tài khoản? Đăng ký
+                        </a>
                     )}
                 </div>
             </form>
-        </div>
+            </section>
+        </main>
     );
 }
