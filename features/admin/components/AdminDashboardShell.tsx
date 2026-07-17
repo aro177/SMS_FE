@@ -129,6 +129,7 @@ export function AdminDashboardShell({
   );
   const [teacherFormOpen, setTeacherFormOpen] = useState(false);
   const [editingTeacherId, setEditingTeacherId] = useState<number | null>(null);
+  const [teacherScheduleName, setTeacherScheduleName] = useState<string | null>(null);
   const [teacherName, setTeacherName] = useState("");
   const [teacherPhone, setTeacherPhone] = useState("");
 
@@ -675,11 +676,7 @@ export function AdminDashboardShell({
                 onAdd={openCreateTeacherForm}
                 onDelete={deleteTeacher}
                 onEdit={openEditTeacherForm}
-                onViewSchedule={(teacher) => {
-                  setScheduleTeacher(teacher);
-                  setActiveTab("schedule");
-                  setNotice(`Đang xem lịch của ${teacher}.`);
-                }}
+                onViewSchedule={(teacher) => setTeacherScheduleName(teacher)}
                 teachers={teacherItems}
               />
             ) : null}
@@ -736,6 +733,14 @@ export function AdminDashboardShell({
           onPhoneChange={setTeacherPhone}
           onClose={() => setTeacherFormOpen(false)}
           onSubmit={handleTeacherSubmit}
+        />
+      ) : null}
+      {teacherScheduleName ? (
+        <TeacherScheduleModal
+          events={scheduleItems.filter((event) => event.teacher === teacherScheduleName)}
+          onClose={() => setTeacherScheduleName(null)}
+          teacherName={teacherScheduleName}
+          weekLabel={formatWeekLabel(weekOffset)}
         />
       ) : null}
       <div className="fixed bottom-4 right-4 z-40 rounded-full border border-[#ead8ca] bg-white px-4 py-2 text-sm font-bold text-[#6f4b34] shadow-[0_12px_30px_rgba(123,82,52,0.16)]">
@@ -1110,18 +1115,18 @@ function SchedulePanel({
           </div>
         </div>
 
-        <div className="min-h-0 overflow-x-auto overflow-y-hidden">
+        <div className="min-h-0 overflow-auto rounded-2xl border border-[#f0ded1]">
           <div
-            className="relative grid h-full min-h-[620px] min-w-[980px] overflow-hidden rounded-2xl border border-[#f0ded1] xl:min-h-0"
+            className="relative grid min-h-[760px] min-w-[1120px]"
             style={{
-              gridTemplateColumns: "54px repeat(7, minmax(126px, 1fr))",
-              gridTemplateRows: `36px repeat(${timeSlots.length}, minmax(40px, 1fr))`,
+              gridTemplateColumns: "64px repeat(7, minmax(150px, 1fr))",
+              gridTemplateRows: `42px repeat(${timeSlots.length}, 52px)`,
             }}
           >
-            <div className="border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
+            <div className="sticky left-0 top-0 z-20 border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
             {dayLabels.map((day, dayIndex) => (
               <div
-                className="grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] text-xs font-extrabold uppercase text-[#8b6a58]"
+                className="sticky top-0 z-10 grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] text-xs font-extrabold uppercase text-[#8b6a58]"
                 key={day}
                 style={{ gridColumn: dayIndex + 2, gridRow: 1 }}
               >
@@ -1130,7 +1135,7 @@ function SchedulePanel({
             ))}
             {timeSlots.map((hour, hourIndex) => (
               <div
-                className="border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
+                className="sticky left-0 z-10 border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
                 key={hour}
                 style={{ gridColumn: 1, gridRow: hourIndex + 2 }}
               >
@@ -1148,7 +1153,7 @@ function SchedulePanel({
             )}
             {events.map((event) => (
               <button
-                className="z-10 m-1 min-h-0 overflow-hidden rounded-xl p-2 text-left text-white shadow-[0_10px_20px_rgba(123,82,52,0.18)] transition hover:-translate-y-0.5"
+                className="z-10 m-1 min-h-[82px] overflow-hidden rounded-xl p-2.5 text-left text-white shadow-[0_10px_20px_rgba(123,82,52,0.18)] transition hover:-translate-y-0.5"
                 key={event.id}
                 onClick={() => onEdit(event)}
                 style={{
@@ -1166,8 +1171,8 @@ function SchedulePanel({
                     {repeatTypeLabels[event.repeatType]}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-xs font-bold leading-4">{event.className}</p>
-                <p className="mt-0.5 truncate text-[11px] leading-4 text-white/86">
+                <p className="mt-1 line-clamp-2 text-xs font-bold leading-4">{event.className}</p>
+                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-white/86">
                   {event.teacher} · {event.room}
                 </p>
               </button>
@@ -1176,6 +1181,106 @@ function SchedulePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function TeacherScheduleModal({
+  events,
+  onClose,
+  teacherName,
+  weekLabel,
+}: {
+  events: ScheduleEvent[];
+  onClose: () => void;
+  teacherName: string;
+  weekLabel: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#2d211b]/35 px-3 py-4">
+      <section className="grid max-h-[92dvh] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-3xl border border-[#ead8ca] bg-white shadow-2xl">
+        <div className="flex flex-col gap-3 border-b border-[#ead8ca] bg-[#fffaf5] p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#a36c45]">Lịch dạy giáo viên</p>
+            <h2 className="mt-1 text-2xl font-extrabold text-[#2d211b]">{teacherName}</h2>
+            <p className="mt-1 text-sm font-bold text-[#725e51]">{weekLabel}</p>
+          </div>
+          <button
+            className="grid size-10 place-items-center self-end rounded-full border border-[#d9bda8] bg-white text-xl font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:self-auto"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="min-h-0 overflow-auto p-3">
+          {events.length === 0 ? (
+            <div className="grid min-h-[260px] place-items-center rounded-3xl border border-dashed border-[#d9bda8] bg-[#fffaf5] p-6 text-center">
+              <p className="text-base font-extrabold text-[#8b5632]">Giáo viên này chưa có lịch dạy trong tuần đang xem.</p>
+            </div>
+          ) : (
+            <div
+              className="relative grid min-h-[680px] min-w-[1040px] rounded-2xl border border-[#f0ded1]"
+              style={{
+                gridTemplateColumns: "64px repeat(7, minmax(140px, 1fr))",
+                gridTemplateRows: `42px repeat(${timeSlots.length}, 48px)`,
+              }}
+            >
+              <div className="sticky left-0 top-0 z-20 border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
+              {dayLabels.map((day, dayIndex) => (
+                <div
+                  className="sticky top-0 z-10 grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] text-xs font-extrabold uppercase text-[#8b6a58]"
+                  key={day}
+                  style={{ gridColumn: dayIndex + 2, gridRow: 1 }}
+                >
+                  {day}
+                </div>
+              ))}
+              {timeSlots.map((hour, hourIndex) => (
+                <div
+                  className="sticky left-0 z-10 border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
+                  key={hour}
+                  style={{ gridColumn: 1, gridRow: hourIndex + 2 }}
+                >
+                  {`${String(hour).padStart(2, "0")}:00`}
+                </div>
+              ))}
+              {timeSlots.flatMap((hour) =>
+                dayLabels.map((day, dayIndex) => (
+                  <div
+                    className="border-b border-r border-[#f0ded1] bg-white"
+                    key={`${day}-${hour}-teacher-modal`}
+                    style={{ gridColumn: dayIndex + 2, gridRow: hour - 5 }}
+                  />
+                )),
+              )}
+              {events.map((event) => (
+                <article
+                  className="z-10 m-1 min-h-[76px] overflow-hidden rounded-xl p-2.5 text-left text-white shadow-[0_10px_20px_rgba(123,82,52,0.18)]"
+                  key={event.id}
+                  style={{
+                    backgroundColor: event.color,
+                    gridColumn: event.dayIndex + 2,
+                    gridRow: `${event.startHour - 5} / span ${event.durationHours}`,
+                  }}
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-1.5">
+                    <p className="min-w-0 text-sm font-extrabold leading-5">
+                      {`${String(event.startHour).padStart(2, "0")}:00 - ${String(event.startHour + event.durationHours).padStart(2, "0")}:00`}
+                    </p>
+                    <span className="shrink-0 rounded-full bg-white/24 px-1.5 py-0.5 text-[10px] font-bold leading-4">
+                      {repeatTypeLabels[event.repeatType]}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs font-bold leading-4">{event.className}</p>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-white/86">{event.room}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
