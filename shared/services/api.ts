@@ -1,7 +1,17 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://localhost:7040";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+import { createClient } from "@/utils/supabase/client";
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
+};
+
+export type PagedResult<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 };
 
 export class ApiError extends Error {
@@ -17,11 +27,22 @@ export class ApiError extends Error {
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
 
+  const supabase = createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    headers.set("Authorization", `Bearer ${session.access_token}`);
+  }
+
   if (options.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
   const response = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
     ...options,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     headers,
