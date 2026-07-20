@@ -146,11 +146,11 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
   }
 
   return (
-    <main className="h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_left,#fff8ef_0,#fbefe5_36%,#f6e7dc_100%)] text-[#2d211b]">
-      <div className="mx-auto flex h-full w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-4 xl:px-8">
-        <header className="flex shrink-0 flex-col gap-3 rounded-3xl border border-[#ead8ca] bg-white/80 px-4 py-3 shadow-[0_16px_48px_rgba(123,82,52,0.10)] backdrop-blur md:flex-row md:items-center md:justify-between md:px-5">
+    <main className="min-h-[100svh] overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#fff8ef_0,#fbefe5_36%,#f6e7dc_100%)] text-[#2d211b]">
+      <div className="mx-auto flex min-h-[100svh] w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-4 xl:px-8">
+        <header className="flex shrink-0 flex-col gap-3 rounded-[2rem] border border-[#ead8ca] bg-white/80 px-4 py-4 shadow-[0_16px_48px_rgba(123,82,52,0.10)] backdrop-blur md:flex-row md:items-center md:justify-between md:px-5">
           <div>
-            <p className="text-2xl font-extrabold tracking-tight text-[#8b5632]">An Nhiên Kids</p>
+            <p className="text-[2rem] font-extrabold leading-none tracking-tight text-[#8b5632] md:text-3xl">An Nhiên Kids</p>
             <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">
               Cổng phụ huynh
             </p>
@@ -191,15 +191,15 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
         </header>
 
         {activeTab === "classes" ? (
-          <section className="grid min-h-0 flex-1 gap-4 overflow-y-auto xl:grid-cols-[minmax(0,1.58fr)_minmax(360px,0.62fr)] xl:overflow-hidden">
-            <div className="flex min-h-0 flex-col rounded-3xl border border-[#ead8ca] bg-white/90 shadow-[0_20px_60px_rgba(123,82,52,0.10)]">
+          <section className="grid flex-1 gap-4 xl:h-[calc(100svh-140px)] xl:min-h-0 xl:grid-cols-[minmax(0,1.58fr)_minmax(360px,0.62fr)] xl:overflow-hidden">
+            <div className="flex flex-col rounded-3xl border border-[#ead8ca] bg-white/90 shadow-[0_20px_60px_rgba(123,82,52,0.10)] xl:min-h-0">
               <div className="shrink-0 border-b border-[#f0ded1] px-4 py-4 md:px-5">
                 <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">
                   Lớp đang mở
                 </p>
-                <div className="mt-2 grid gap-4 2xl:grid-cols-[minmax(340px,0.75fr)_minmax(560px,1fr)] 2xl:items-end">
+                <div className="mt-2 grid gap-4">
                   <div>
-                    <h1 className="text-3xl font-extrabold leading-tight tracking-tight md:text-4xl">
+                    <h1 className="max-w-[920px] text-[clamp(2.15rem,7vw,4rem)] font-extrabold leading-[1.05] tracking-tight xl:text-[clamp(2.35rem,4vw,4.25rem)]">
                       Chọn lớp phù hợp cho con
                     </h1>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-bold text-[#8b5632]">
@@ -288,13 +288,13 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
                 </div>
               </div>
 
-              <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 sm:grid-cols-2 lg:grid-cols-3 xl:overflow-hidden">
+              <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
                 {visibleClasses.map((classroom) => {
                   const isSelected = classroom.id === selectedClass?.id;
 
                   return (
                     <button
-                      className={`flex min-h-[260px] flex-col overflow-hidden rounded-3xl border p-4 text-left transition duration-200 md:min-h-0 2xl:p-5 ${
+                      className={`flex min-h-[230px] flex-col overflow-hidden rounded-3xl border p-4 text-left transition duration-200 xl:min-h-[250px] 2xl:p-5 ${
                         isSelected
                           ? "border-[#a36c45] bg-[#fff5ed] shadow-[0_18px_38px_rgba(163,108,69,0.18)]"
                           : "border-[#ead8ca] bg-white hover:-translate-y-1 hover:border-[#d9bda8] hover:bg-[#fffaf5] hover:shadow-[0_16px_34px_rgba(123,82,52,0.10)]"
@@ -347,7 +347,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
               </div>
             </div>
 
-            <aside className="relative flex min-h-0 flex-col gap-5 rounded-3xl border border-[#ead8ca] bg-white/75 p-4 shadow-[0_20px_60px_rgba(123,82,52,0.10)] backdrop-blur md:p-5">
+            <aside className="relative flex flex-col gap-4 rounded-3xl border border-[#ead8ca] bg-white/75 p-4 shadow-[0_20px_60px_rgba(123,82,52,0.10)] backdrop-blur md:p-5 xl:min-h-0 xl:overflow-y-auto">
               <div className="rounded-3xl bg-gradient-to-br from-[#f3ddcb] to-[#fff1e5] p-5 md:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-[#8b5632]">
@@ -357,7 +357,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
                     {selectedClass?.highlight}
                   </span>
                 </div>
-                <h2 className="mt-3 text-3xl font-extrabold leading-tight">{selectedClass?.name}</h2>
+                <h2 className="mt-3 text-2xl font-extrabold leading-tight sm:text-3xl">{selectedClass?.name}</h2>
                 <p className="mt-3 text-base leading-7 text-[#725e51]">{selectedClass?.description}</p>
               </div>
 
@@ -392,7 +392,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
             </aside>
           </section>
         ) : (
-          <section className="grid min-h-0 flex-1 gap-4 overflow-y-auto xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden">
+          <section className="grid flex-1 gap-4 xl:h-[calc(100svh-140px)] xl:min-h-0 xl:grid-cols-[0.9fr_1.1fr] xl:overflow-hidden">
             <div className="rounded-3xl border border-[#ead8ca] bg-white/90 p-5 shadow-[0_20px_60px_rgba(123,82,52,0.10)] md:p-7">
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">
                 Tra cứu học viên
