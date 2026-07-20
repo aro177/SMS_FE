@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5242";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 import { createClient } from "@/utils/supabase/client";
 

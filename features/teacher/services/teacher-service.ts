@@ -125,7 +125,6 @@ export const teacherService = {
 // =========================
 
 import { api } from "@/shared/services/api";
-import type { AttendanceStudent, AttendanceStatus, TeacherLesson, TeacherOption } from "../types";
 
 export const teacherService = {
   getMe: () => api.get<TeacherOption>("/api/teachers/me"),
