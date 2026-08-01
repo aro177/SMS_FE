@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchResultSettings } from "@/features/settings/store/use-search-result-settings";
+import { LogoutButton } from "@/features/auth/components/LogoutButton";
 import type { AttendanceHistoryItem, ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
 import { guestService } from "../services/guest-service";
 
 type GuestLandingPageProps = {
   classes: PublicClass[];
-  childResults: ChildSearchResult[];
   hasUser: boolean | null;
   userRole: string | null;
 };
@@ -26,7 +27,9 @@ const emptyRegistrationForm: ClassRegistrationForm = {
   note: "",
 };
 
-export function GuestLandingPage({ classes, childResults, hasUser, userRole }: GuestLandingPageProps) {
+export function GuestLandingPage({ classes, hasUser, userRole }: GuestLandingPageProps) {
+  const showHeight = useSearchResultSettings((state) => state.showHeight);
+  const showWeight = useSearchResultSettings((state) => state.showWeight);
   const [activeTab, setActiveTab] = useState<GuestTab>("classes");
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? 0);
   const [subjectFilter, setSubjectFilter] = useState<SubjectFilter>("all");
@@ -48,6 +51,10 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
       : userRole === "ADMIN"
           ? "/admin"
           : "/teacher";
+
+  useEffect(() => {
+    void useSearchResultSettings.persist.rehydrate();
+  }, []);
 
   const filteredClasses = useMemo(
     () =>
@@ -78,7 +85,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
       return null;
     }
 
-    const source = apiChildResults ?? childResults;
+    const source = apiChildResults ?? [];
 
     return (
       source.find(
@@ -87,7 +94,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
       source[0] ??
       null
     );
-  }, [apiChildResults, childDob, childResults, parentPhone, searched]);
+  }, [apiChildResults, childDob, parentPhone, searched]);
 
   async function handleRegisterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,7 +108,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
       setRegistrationForm(emptyRegistrationForm);
       setRegistrationSent(true);
     } catch {
-      setRegistrationSent(true);
+      setRegistrationSent(false);
     } finally {
       setRegistrationSending(false);
     }
@@ -181,12 +188,15 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
             </button>
           </div>
 
-          <a
-              className="hidden rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:inline-flex"
-              href={managementHref}
-          >
-            {hasUser ? "Quản lý" : "Đăng nhập"}
-          </a>
+          <div className="flex items-center gap-2">
+            <a
+                className="hidden rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:inline-flex"
+                href={managementHref}
+            >
+              {hasUser ? "Quản lý" : "Đăng nhập"}
+            </a>
+            {hasUser ? <LogoutButton redirectTo="/guest" /> : null}
+          </div>
 
         </header>
 
@@ -452,7 +462,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
                       <p className="text-3xl font-extrabold">{searchResult.childName}</p>
                       <p className="mt-2 text-base text-[#725e51]">Ngày sinh: {searchResult.dateOfBirth}</p>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-3xl bg-white p-5">
                         <p className="text-base text-[#725e51]">Lớp hiện tại</p>
                         <p className="mt-2 text-lg font-extrabold">{searchResult.currentClass}</p>
@@ -461,6 +471,22 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
                         <p className="text-base text-[#725e51]">Chuyên cần</p>
                         <p className="mt-2 text-lg font-extrabold">{searchResult.attendanceRate}</p>
                       </div>
+                      {showHeight ? (
+                        <div className="rounded-3xl bg-white p-5">
+                          <p className="text-base text-[#725e51]">Chiều cao</p>
+                          <p className="mt-2 text-lg font-extrabold">
+                            {formatMeasurement(searchResult.height, "cm")}
+                          </p>
+                        </div>
+                      ) : null}
+                      {showWeight ? (
+                        <div className="rounded-3xl bg-white p-5">
+                          <p className="text-base text-[#725e51]">Cân nặng</p>
+                          <p className="mt-2 text-lg font-extrabold">
+                            {formatMeasurement(searchResult.weight, "kg")}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                     <p className="rounded-3xl bg-[#f2dfcf] p-5 text-base font-bold leading-7 text-[#8b5632]">
                       {searchResult.latestNote}
@@ -498,8 +524,7 @@ export function GuestLandingPage({ classes, childResults, hasUser, userRole }: G
                 )
               ) : (
                 <div className="mt-5 rounded-3xl bg-white p-6 text-base leading-7 text-[#725e51]">
-                  Dữ liệu demo: <span className="font-extrabold text-[#2d211b]">0901234567</span> và{" "}
-                  <span className="font-extrabold text-[#2d211b]">2016-08-12</span>.
+                  Nhập số điện thoại phụ huynh và ngày sinh của học viên để tra cứu.
                 </div>
               )}
             </div>
@@ -617,4 +642,8 @@ function formatTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatMeasurement(value: number | null | undefined, unit: "cm" | "kg") {
+  return value == null ? "Chưa cập nhật" : `${value.toLocaleString("vi-VN")} ${unit}`;
 }

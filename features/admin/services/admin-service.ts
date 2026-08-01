@@ -1,6 +1,6 @@
-import { registrationRequests, scheduleEvents } from "@/features/admin/data/admin-data";
-import { publicClasses } from "@/features/guest/data/guest-data";
-import type { PagedResult } from "@/shared/services/api";
+// import { registrationRequests, scheduleEvents } from "@/features/admin/data/admin-data";
+// import { publicClasses } from "@/features/guest/data/guest-data";
+import { api, type PagedResult } from "@/shared/services/api";
 import type { Lesson, RegistrationRequest, Teacher } from "../types";
 
 export type CreateTeacherPayload = {
@@ -44,6 +44,7 @@ function mapRegistration(item: RegistrationApiItem): RegistrationRequest {
   };
 }
 
+/*
 const mockTeachersSeed: Teacher[] = [
   { classesCount: 2, fullname: "Nguyễn Thị Lan", id: 1, phone: "0901112222" },
   { classesCount: 1, fullname: "Trần Minh Khoa", id: 2, phone: "0903334444" },
@@ -175,23 +176,21 @@ export const adminService = {
     );
   },
 };
+*/
 
-// REAL API - ĐANG TẠM COMMENT ĐỂ TEST MOCK
-//
-// import { api } from "@/shared/services/api";
-//
-// export const adminService = {
-//   getTeachers: () => api.get<PagedResult<Teacher>>("/api/teachers?page=1&pageSize=100"),
-//   createTeacher: (payload: CreateTeacherPayload) => api.post<Teacher>("/api/teachers", payload),
-//   updateTeacher: (id: number, payload: CreateTeacherPayload) => api.put<void>(`/api/teachers/${id}`, payload),
-//   deleteTeacher: (id: number) => api.delete<void>(`/api/teachers/${id}`),
-//   getLessons: () => api.get<PagedResult<Lesson>>("/api/lessons?page=1&pageSize=100"),
-//   createLesson: (payload: CreateLessonPayload) => api.post<Lesson>("/api/lessons", payload),
-//   updateLesson: (id: number, payload: UpdateLessonPayload) => api.put<void>(`/api/lessons/${id}`, payload),
-//   getRegistrations: async () => {
-//     const result = await api.get<PagedResult<RegistrationApiItem>>("/api/class-registrations?page=1&pageSize=100");
-//     return result.items.map(mapRegistration);
-//   },
-//   approveRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/approve`, {}),
-//   rejectRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/reject`, {}),
-// };
+// REAL API - ĐANG BẬT
+export const adminService = {
+  getTeachers: () => api.get<PagedResult<Teacher>>("/api/teachers?page=1&pageSize=100"),
+  createTeacher: (payload: CreateTeacherPayload) => api.post<Teacher>("/api/teachers", payload),
+  updateTeacher: (id: number, payload: CreateTeacherPayload) => api.put<void>(`/api/teachers/${id}`, payload),
+  deleteTeacher: (id: number) => api.delete<void>(`/api/teachers/${id}`),
+  getLessons: () => api.get<PagedResult<Lesson>>("/api/lessons?page=1&pageSize=100"),
+  createLesson: (payload: CreateLessonPayload) => api.post<Lesson>("/api/lessons", payload),
+  updateLesson: (id: number, payload: UpdateLessonPayload) => api.put<void>(`/api/lessons/${id}`, payload),
+  getRegistrations: async () => {
+    const result = await api.get<PagedResult<RegistrationApiItem>>("/api/class-registrations?page=1&pageSize=100");
+    return result.items.map(mapRegistration);
+  },
+  approveRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/approve`, {}),
+  rejectRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/reject`, {}),
+};

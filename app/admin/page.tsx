@@ -1,11 +1,8 @@
 import { AdminDashboardShell } from "@/features/admin/components/AdminDashboardShell";
-import { registrationRequests, scheduleEvents as demoScheduleEvents } from "@/features/admin/data/admin-data";
 import { adminService } from "@/features/admin/services/admin-service";
 import type { Lesson, RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
-import { classroomOverviews } from "@/features/classes/data/classes-data";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom, ClassroomOverview } from "@/features/classes/types";
-import { recentStudents } from "@/features/students/data/students-data";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent, Student } from "@/features/students/types";
 import { getUser } from '@/utils/supabase/queries';
@@ -45,7 +42,7 @@ async function loadRegistrations(): Promise<RegistrationRequest[]> {
   try {
     return await adminService.getRegistrations();
   } catch {
-    return registrationRequests;
+    return [];
   }
 }
 
@@ -54,7 +51,7 @@ async function loadClasses(): Promise<ClassroomOverview[]> {
     const result = await classesService.getClasses();
     return result.items.map(mapClassroomToOverview);
   } catch {
-    return classroomOverviews;
+    return [];
   }
 }
 
@@ -63,7 +60,7 @@ async function loadStudents(): Promise<RecentStudent[]> {
     const result = await studentsService.getStudents();
     return result.items.map(mapStudentToRecentStudent);
   } catch {
-    return recentStudents;
+    return [];
   }
 }
 
@@ -87,7 +84,7 @@ function mapStudentToRecentStudent(student: Student): RecentStudent {
   return {
     name: student.fullname,
     parent: student.parentName ?? "Chưa có phụ huynh",
-    className: student.currentClass ?? "Chưa có lớp",
+    classNames: student.currentClass,
   };
 }
 
@@ -96,11 +93,7 @@ async function loadTeachers(): Promise<Teacher[]> {
     const result = await adminService.getTeachers();
     return result.items;
   } catch {
-    return [
-      { id: 1, fullname: "Nguyễn Thị Lan", phone: null, classesCount: 2 },
-      { id: 2, fullname: "Trần Minh Khoa", phone: null, classesCount: 3 },
-      { id: 3, fullname: "Phạm Gia Hân", phone: null, classesCount: 4 },
-    ];
+    return [];
   }
 }
 
@@ -109,7 +102,7 @@ async function loadScheduleEvents(): Promise<ScheduleEvent[]> {
     const result = await adminService.getLessons();
     return result.items.map(mapLessonToScheduleEvent);
   } catch {
-    return demoScheduleEvents;
+    return [];
   }
 }
 
@@ -118,20 +111,30 @@ function mapLessonToScheduleEvent(lesson: Lesson, index: number): ScheduleEvent 
   const end = new Date(lesson.endTime);
   const day = start.getDay();
   const dayIndex = day === 0 ? 6 : day - 1;
-  const durationHours = Math.max(1, Math.round((end.getTime() - start.getTime()) / 3_600_000));
+  const durationHours = Math.max(0.5, Math.round(((end.getTime() - start.getTime()) / 3_600_000) * 2) / 2);
   const colors = ["#a36c45", "#17b8a6", "#8b5cf6", "#f97316", "#0ea5e9", "#22c55e", "#f59e0b"];
 
   return {
     id: lesson.id,
     classroomId: lesson.classroomId,
     className: lesson.classroomName,
+    code: lesson.code,
     color: colors[index % colors.length],
     dayIndex,
     durationHours,
-    repeatType: "fixed",
+    occurrenceDate: formatLocalDateKey(start),
+    repeatType: "temporary",
     room: "Phòng học",
     startHour: start.getHours(),
     status: "confirmed",
+    takeAttendanceStatus: lesson.takeAttendanceStatus,
     teacher: lesson.teacherName ?? "Chưa phân công",
   };
+}
+
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

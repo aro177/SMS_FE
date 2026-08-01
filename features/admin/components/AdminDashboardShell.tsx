@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { adminService } from "@/features/admin/services/admin-service";
 import type { RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
@@ -12,10 +12,18 @@ import { guestService } from "@/features/guest/services/guest-service";
 import { RecentStudents } from "@/features/students/components/RecentStudents";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent } from "@/features/students/types";
+import { useSearchResultSettings } from "@/features/settings/store/use-search-result-settings";
+import { LogoutButton } from "@/features/auth/components/LogoutButton";
 
-type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers";
+type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "settings";
 type FilterValue = "all" | string;
 type ScheduleView = "day" | "week" | "month";
+
+type CalendarDayColumn = {
+  date: Date;
+  dayIndex: number;
+  label: string;
+};
 
 type AdminDashboardShellProps = {
   classes: ClassroomOverview[];
@@ -62,17 +70,20 @@ type RegistrationFormState = {
   requestedClass: string;
 };
 
-const adminTabs: { id: AdminTab; label: string; helper: string; icon: "grid" | "calendar" | "book" | "users" | "clipboard" | "teacher" }[] = [
+const adminTabs: { id: AdminTab; label: string; helper: string; icon: "grid" | "calendar" | "book" | "users" | "clipboard" | "teacher" | "settings" }[] = [
   { id: "overview", label: "Tổng quan", helper: "Theo dõi nhanh tình hình trung tâm", icon: "grid" },
   { id: "schedule", label: "Sắp xếp lịch học", helper: "Xếp giờ học theo tuần", icon: "calendar" },
   { id: "classes", label: "Quản lý lớp học", helper: "Lịch, học phí và sĩ số", icon: "book" },
   { id: "students", label: "Quản lý học viên", helper: "Thông tin con và phụ huynh", icon: "users" },
   { id: "registrations", label: "Đăng ký học", helper: "Yêu cầu mới từ cổng phụ huynh", icon: "clipboard" },
   { id: "teachers", label: "Quản lý giáo viên", helper: "Phân công lớp và lịch dạy", icon: "teacher" },
+  { id: "settings", label: "Cài đặt", helper: "Tùy chỉnh thông tin hiển thị", icon: "settings" },
 ];
 
 const dayLabels = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
 const timeSlots = Array.from({ length: 15 }, (_, index) => index + 7);
+const calendarTimeSlots = Array.from({ length: 29 }, (_, index) => 7 + index / 2);
+const presetDurationHours = [1, 2, 3];
 const eventColors = ["#a36c45", "#17b8a6", "#8b5cf6", "#f97316", "#0ea5e9", "#22c55e", "#f59e0b"];
 const defaultRoom = "Phòng Sen";
 
@@ -111,7 +122,7 @@ export function AdminDashboardShell({
   const [scheduleRoom, setScheduleRoom] = useState<FilterValue>("all");
   const [scheduleStatus, setScheduleStatus] = useState<FilterValue>("all");
   const [scheduleView, setScheduleView] = useState<ScheduleView>("week");
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [scheduleDate, setScheduleDate] = useState(() => startOfDay(new Date()));
   const [scheduleItems, setScheduleItems] = useState<ScheduleEvent[]>(scheduleEvents);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
@@ -148,7 +159,10 @@ export function AdminDashboardShell({
     [classItems, classKeyword, classStatus],
   );
 
-  const classNames = useMemo(() => Array.from(new Set(studentItems.map((student) => student.className))), [studentItems]);
+  const classNames = useMemo(
+    () => Array.from(new Set(studentItems.flatMap((student) => student.classNames))),
+    [studentItems],
+  );
 
   const filteredStudents = useMemo(
     () =>
@@ -158,8 +172,8 @@ export function AdminDashboardShell({
           keyword.length === 0 ||
           student.name.toLowerCase().includes(keyword) ||
           student.parent.toLowerCase().includes(keyword) ||
-          student.className.toLowerCase().includes(keyword);
-        const matchesClass = studentClass === "all" || student.className === studentClass;
+          student.classNames.some((className) => className.toLowerCase().includes(keyword));
+        const matchesClass = studentClass === "all" || student.classNames.includes(studentClass);
 
         return matchesKeyword && matchesClass;
       }),
@@ -228,19 +242,29 @@ export function AdminDashboardShell({
       return;
     }
 
-    const startTime = buildLessonDate(scheduleForm.dayIndex, scheduleForm.startHour);
-    const endTime = new Date(startTime.getTime() + scheduleForm.durationHours * 3_600_000);
+    const durationHours = Number(scheduleForm.durationHours);
+    if (!Number.isFinite(durationHours) || durationHours < 0.5 || durationHours > 12) {
+      setNotice("Thời lượng phải nằm trong khoảng từ 0,5 đến 12 giờ.");
+      return;
+    }
+
+    const startTime = buildLessonDate(scheduleDate, scheduleForm.dayIndex, scheduleForm.startHour);
+    const endTime = new Date(startTime.getTime() + durationHours * 3_600_000);
     const nextEvent: ScheduleEvent = {
       id: editingScheduleId ?? Date.now(),
       classroomId: selectedClass.id,
       className: scheduleForm.className,
+      code: scheduleItems.find((item) => item.id === editingScheduleId)?.code ?? "",
       teacher: selectedClass?.teacher ?? "Chưa chọn",
       room: scheduleForm.room,
       dayIndex: Number(scheduleForm.dayIndex),
-      durationHours: Number(scheduleForm.durationHours),
+      durationHours,
+      occurrenceDate: formatLocalDateKey(startTime),
       startHour: Number(scheduleForm.startHour),
       repeatType: scheduleForm.repeatType,
       status: scheduleForm.status,
+      takeAttendanceStatus:
+        scheduleItems.find((item) => item.id === editingScheduleId)?.takeAttendanceStatus ?? false,
       color:
         scheduleItems.find((item) => item.id === editingScheduleId)?.color ??
         eventColors[scheduleItems.length % eventColors.length],
@@ -255,6 +279,8 @@ export function AdminDashboardShell({
           endTime: endTime.toISOString(),
         });
         nextEvent.id = saved.id;
+        nextEvent.code = saved.code;
+        nextEvent.takeAttendanceStatus = saved.takeAttendanceStatus;
       } else {
         await adminService.updateLesson(editingScheduleId, {
           classroomId: selectedClass.id,
@@ -270,11 +296,7 @@ export function AdminDashboardShell({
       setScheduleFormOpen(false);
       setNotice(editingScheduleId === null ? "Đã thêm lớp vào lịch thật." : "Đã cập nhật lịch học thật.");
     } catch {
-      setScheduleItems((items) =>
-        editingScheduleId === null ? [...items, nextEvent] : items.map((item) => (item.id === editingScheduleId ? nextEvent : item)),
-      );
-      setScheduleFormOpen(false);
-      setNotice("Backend chưa sẵn sàng, đã cập nhật tạm trên giao diện.");
+      setNotice("Không thể lưu lịch học lên backend. Vui lòng thử lại.");
     }
   }
 
@@ -351,10 +373,8 @@ export function AdminDashboardShell({
         setNotice(`Đã thêm lớp ${saved.name} từ backend.`);
       }
     } catch {
-      setClassItems((items) =>
-        editingClassId ? items.map((item) => (item.id === editingClassId ? fallbackClass : item)) : [fallbackClass, ...items],
-      );
-      setNotice(`Backend chưa sẵn sàng, đã cập nhật tạm lớp ${classForm.name}.`);
+      setNotice(`Không thể lưu lớp ${classForm.name} lên backend. Vui lòng thử lại.`);
+      return;
     }
     setEditingClassId(null);
     setClassFormOpen(false);
@@ -368,11 +388,11 @@ export function AdminDashboardShell({
 
     try {
       await classesService.deleteClass(classroom.id);
+      setClassItems((items) => items.filter((item) => item.id !== classroom.id));
       setNotice(`Đã xóa lớp ${classroom.name}.`);
     } catch {
-      setNotice(`Backend chưa sẵn sàng, đã ẩn tạm lớp ${classroom.name}.`);
+      setNotice(`Không thể xóa lớp ${classroom.name} trên backend.`);
     }
-    setClassItems((items) => items.filter((item) => item.id !== classroom.id));
   }
 
   function openCreateStudentForm() {
@@ -393,7 +413,7 @@ export function AdminDashboardShell({
       });
       setStudentItems((items) => [
         {
-          className: saved.currentClass ?? studentForm.className,
+          classNames: saved.currentClass.length > 0 ? saved.currentClass : [studentForm.className],
           name: saved.fullname,
           parent: saved.parentName ?? studentForm.parent,
         },
@@ -401,8 +421,8 @@ export function AdminDashboardShell({
       ]);
       setNotice(`Đã tạo hồ sơ học viên chính thức cho ${studentForm.name}.`);
     } catch {
-      setStudentItems((items) => [studentForm, ...items]);
-      setNotice(`Backend chưa sẵn sàng, đã thêm tạm học viên ${studentForm.name}.`);
+      setNotice(`Không thể thêm học viên ${studentForm.name} lên backend.`);
+      return;
     }
     setStudentFormOpen(false);
   }
@@ -415,19 +435,23 @@ export function AdminDashboardShell({
   async function handleRegistrationSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const selectedClass = classItems.find((classroom) => classroom.name === registrationForm.requestedClass);
-    if (selectedClass?.id) {
-      try {
-        await guestService.registerClass(selectedClass.id, {
-          childDob: registrationForm.childDob,
-          childName: registrationForm.childName,
-          note: "Tạo từ admin",
-          parentName: registrationForm.parentName,
-          parentPhone: registrationForm.phone,
-        });
-        setNotice(`Đã gửi đăng ký của bé ${registrationForm.childName} lên backend.`);
-      } catch {
-        setNotice(`Backend chưa sẵn sàng, đã tạo tạm đăng ký cho bé ${registrationForm.childName}.`);
-      }
+    if (!selectedClass?.id) {
+      setNotice("Lớp đã chọn không có ID backend.");
+      return;
+    }
+
+    try {
+      await guestService.registerClass(selectedClass.id, {
+        childDob: registrationForm.childDob,
+        childName: registrationForm.childName,
+        note: "Tạo từ admin",
+        parentName: registrationForm.parentName,
+        parentPhone: registrationForm.phone,
+      });
+      setNotice(`Đã gửi đăng ký của bé ${registrationForm.childName} lên backend.`);
+    } catch {
+      setNotice(`Không thể tạo đăng ký cho bé ${registrationForm.childName} trên backend.`);
+      return;
     }
     setRegistrationItems((items) => [
       {
@@ -451,12 +475,11 @@ export function AdminDashboardShell({
         await adminService.rejectRegistration(id);
       }
 
+      setRegistrationItems((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
       setNotice(status === "confirmed" ? "Đã duyệt đăng ký." : "Đã cập nhật trạng thái đăng ký.");
     } catch {
-      setNotice("Backend chưa sẵn sàng, đã cập nhật tạm trên giao diện.");
+      setNotice("Không thể cập nhật trạng thái đăng ký trên backend.");
     }
-
-    setRegistrationItems((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
   }
 
   function openCreateTeacherForm() {
@@ -492,12 +515,8 @@ export function AdminDashboardShell({
         setNotice("Đã thêm giáo viên mới lên backend.");
       }
     } catch {
-      setTeacherItems((items) =>
-        editingTeacherId
-          ? items.map((item) => (item.id === editingTeacherId ? { ...item, ...payload } : item))
-          : [{ id: Date.now(), ...payload, classesCount: 0 }, ...items],
-      );
-      setNotice("Backend chưa sẵn sàng, đã cập nhật tạm giáo viên.");
+      setNotice("Không thể lưu giáo viên lên backend. Vui lòng thử lại.");
+      return;
     }
     setEditingTeacherId(null);
     setTeacherName("");
@@ -508,11 +527,11 @@ export function AdminDashboardShell({
   async function deleteTeacher(teacher: Teacher) {
     try {
       await adminService.deleteTeacher(teacher.id);
+      setTeacherItems((items) => items.filter((item) => item.id !== teacher.id));
       setNotice(`Đã xóa giáo viên ${teacher.fullname}.`);
     } catch {
-      setNotice(`Backend chưa sẵn sàng, đã ẩn tạm giáo viên ${teacher.fullname}.`);
+      setNotice(`Không thể xóa giáo viên ${teacher.fullname} trên backend.`);
     }
-    setTeacherItems((items) => items.filter((item) => item.id !== teacher.id));
   }
 
   function resetFilters() {
@@ -539,12 +558,15 @@ export function AdminDashboardShell({
               <p className="text-2xl font-extrabold tracking-tight text-[#8b5632]">An Nhiên Kids</p>
               <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">Khu quản lý</p>
             </div>
-            <a
-              className="rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] xl:mt-4 xl:inline-flex"
-              href="/guest"
-            >
-              Cổng phụ huynh
-            </a>
+            <div className="flex items-center gap-2 xl:mt-4 xl:flex-wrap">
+              <a
+                className="inline-flex rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+                href="/guest"
+              >
+                Cổng phụ huynh
+              </a>
+              <LogoutButton />
+            </div>
           </div>
 
           <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible xl:pb-0">
@@ -602,18 +624,18 @@ export function AdminDashboardShell({
                 onCreate={openCreateScheduleForm}
                 onEdit={openEditScheduleForm}
                 onNext={() => {
-                  setWeekOffset((offset) => offset + 1);
-                  setNotice("Đã chuyển sang tuần tiếp theo.");
+                  setScheduleDate((date) => moveScheduleDate(date, scheduleView, 1));
+                  setNotice(scheduleView === "day" ? "Đã chuyển sang ngày tiếp theo." : scheduleView === "week" ? "Đã chuyển sang tuần tiếp theo." : "Đã chuyển sang tháng tiếp theo.");
                 }}
                 onPrevious={() => {
-                  setWeekOffset((offset) => offset - 1);
-                  setNotice("Đã quay lại tuần trước.");
+                  setScheduleDate((date) => moveScheduleDate(date, scheduleView, -1));
+                  setNotice(scheduleView === "day" ? "Đã quay lại ngày trước." : scheduleView === "week" ? "Đã quay lại tuần trước." : "Đã quay lại tháng trước.");
                 }}
                 onRoomChange={setScheduleRoom}
                 onStatusChange={setScheduleStatus}
                 onToday={() => {
-                  setWeekOffset(0);
-                  setNotice("Đã quay về tuần hiện tại.");
+                  setScheduleDate(startOfDay(new Date()));
+                  setNotice("Đã quay về hôm nay.");
                 }}
                 onTeacherChange={setScheduleTeacher}
                 room={scheduleRoom}
@@ -622,7 +644,8 @@ export function AdminDashboardShell({
                 teacher={scheduleTeacher}
                 teachers={scheduleTeachers}
                 view={scheduleView}
-                weekLabel={formatWeekLabel(weekOffset)}
+                selectedDate={scheduleDate}
+                dateLabel={formatScheduleDateLabel(scheduleDate, scheduleView)}
               />
             ) : null}
 
@@ -680,6 +703,8 @@ export function AdminDashboardShell({
                 teachers={teacherItems}
               />
             ) : null}
+
+            {activeTab === "settings" ? <SettingsPanel /> : null}
           </div>
         </section>
       </div>
@@ -739,8 +764,9 @@ export function AdminDashboardShell({
         <TeacherScheduleModal
           events={scheduleItems.filter((event) => event.teacher === teacherScheduleName)}
           onClose={() => setTeacherScheduleName(null)}
+          selectedDate={scheduleDate}
           teacherName={teacherScheduleName}
-          weekLabel={formatWeekLabel(weekOffset)}
+          weekLabel={formatScheduleDateLabel(scheduleDate, "week")}
         />
       ) : null}
       <div className="fixed bottom-4 right-4 z-40 rounded-full border border-[#ead8ca] bg-white px-4 py-2 text-sm font-bold text-[#6f4b34] shadow-[0_12px_30px_rgba(123,82,52,0.16)]">
@@ -795,23 +821,134 @@ function createRegistrationFormState(className: string): RegistrationFormState {
   };
 }
 
-function formatWeekLabel(offset: number) {
-  if (offset === 0) {
-    return "8 - 14 Thg 7, 2026";
-  }
-
-  if (offset > 0) {
-    return `Tuần sau +${offset}`;
-  }
-
-  return `Tuần trước ${Math.abs(offset)}`;
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
 }
 
-function buildLessonDate(dayIndex: number, startHour: number) {
-  const baseMonday = new Date("2026-07-06T00:00:00");
-  baseMonday.setDate(baseMonday.getDate() + dayIndex);
-  baseMonday.setHours(startHour, 0, 0, 0);
-  return baseMonday;
+function startOfWeek(date: Date) {
+  const result = startOfDay(date);
+  const day = result.getDay();
+  result.setDate(result.getDate() + (day === 0 ? -6 : 1 - day));
+  return result;
+}
+
+function moveScheduleDate(date: Date, view: ScheduleView, amount: number) {
+  const result = startOfDay(date);
+
+  if (view === "day") {
+    result.setDate(result.getDate() + amount);
+    return result;
+  }
+
+  if (view === "week") {
+    result.setDate(result.getDate() + amount * 7);
+    return result;
+  }
+
+  const originalDay = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + amount);
+  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(originalDay, lastDay));
+  return result;
+}
+
+function formatScheduleDateLabel(date: Date, view: ScheduleView) {
+  if (view === "day") {
+    return new Intl.DateTimeFormat("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      weekday: "long",
+      year: "numeric",
+    }).format(date);
+  }
+
+  if (view === "month") {
+    return `Tháng ${date.getMonth() + 1}, ${date.getFullYear()}`;
+  }
+
+  const monday = startOfWeek(date);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const shortDate = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" });
+  const endDate = new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `${shortDate.format(monday)} - ${endDate.format(sunday)}`;
+}
+
+function getScheduleDayIndex(date: Date) {
+  return date.getDay() === 0 ? 6 : date.getDay() - 1;
+}
+
+function buildLessonDate(referenceDate: Date, dayIndex: number, startHour: number) {
+  const lessonDate = startOfWeek(referenceDate);
+  lessonDate.setDate(lessonDate.getDate() + dayIndex);
+  lessonDate.setHours(startHour, 0, 0, 0);
+  return lessonDate;
+}
+
+function getCalendarDayColumns(selectedDate: Date, view: Exclude<ScheduleView, "month">): CalendarDayColumn[] {
+  if (view === "day") {
+    const date = startOfDay(selectedDate);
+    const dayIndex = getScheduleDayIndex(date);
+    return [{
+      date,
+      dayIndex,
+      label: `${dayLabels[dayIndex]} · ${new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(date)}`,
+    }];
+  }
+
+  const monday = startOfWeek(selectedDate);
+  return dayLabels.map((day, dayIndex) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + dayIndex);
+    return {
+      date,
+      dayIndex,
+      label: `${day} · ${new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(date)}`,
+    };
+  });
+}
+
+function getMonthCalendarDays(selectedDate: Date) {
+  const firstDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const gridStart = startOfWeek(firstDay);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+}
+
+function isPresetDuration(durationHours: number) {
+  return presetDurationHours.includes(durationHours);
+}
+
+function formatHourValue(hourValue: number) {
+  const hours = Math.floor(hourValue);
+  const minutes = Math.round((hourValue - hours) * 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function doesEventOccurOnDate(event: ScheduleEvent, date: Date) {
+  if (event.repeatType === "fixed") {
+    return event.dayIndex === getScheduleDayIndex(date);
+  }
+
+  return event.occurrenceDate === formatLocalDateKey(date);
+}
+
+function getScheduleEventLabel(event: ScheduleEvent) {
+  return event.code.trim() || event.className;
 }
 
 function parseCurrency(value: string) {
@@ -878,6 +1015,15 @@ function AdminTabIcon({ name }: { name: (typeof adminTabs)[number]["icon"] }) {
         <path d="M22 10 12 5 2 10l10 5 10-5z" />
         <path d="M6 12v5c3 2 9 2 12 0v-5" />
         <path d="M22 10v6" />
+      </svg>
+    );
+  }
+
+  if (name === "settings") {
+    return (
+      <svg {...commonProps}>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.15.38.37.72.66 1 .3.28.7.42 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.76.6Z" />
       </svg>
     );
   }
@@ -1040,7 +1186,8 @@ function SchedulePanel({
   teacher,
   teachers,
   view,
-  weekLabel,
+  selectedDate,
+  dateLabel,
 }: {
   events: ScheduleEvent[];
   onChangeView: (view: ScheduleView) => void;
@@ -1058,7 +1205,8 @@ function SchedulePanel({
   teacher: string;
   teachers: string[];
   view: ScheduleView;
-  weekLabel: string;
+  selectedDate: Date;
+  dateLabel: string;
 }) {
   return (
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
@@ -1101,13 +1249,27 @@ function SchedulePanel({
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-3xl border border-[#ead8ca] bg-white p-3 shadow-sm">
         <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
-            <button className="grid size-9 place-items-center rounded-full border border-[#d9bda8] bg-white text-lg font-bold text-[#6f4b34]" onClick={onPrevious} type="button">{"<"}</button>
+            <button
+              aria-label={view === "day" ? "Ngày trước" : view === "week" ? "Tuần trước" : "Tháng trước"}
+              className="grid size-9 place-items-center rounded-full border border-[#d9bda8] bg-white text-lg font-bold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+              onClick={onPrevious}
+              type="button"
+            >
+              {"<"}
+            </button>
             <button className="h-9 rounded-full border border-[#d9bda8] bg-white px-4 text-sm font-extrabold text-[#6f4b34]" onClick={onToday} type="button">
               Hôm nay
             </button>
-            <button className="grid size-9 place-items-center rounded-full border border-[#d9bda8] bg-white text-lg font-bold text-[#6f4b34]" onClick={onNext} type="button">{">"}</button>
+            <button
+              aria-label={view === "day" ? "Ngày tiếp theo" : view === "week" ? "Tuần tiếp theo" : "Tháng tiếp theo"}
+              className="grid size-9 place-items-center rounded-full border border-[#d9bda8] bg-white text-lg font-bold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+              onClick={onNext}
+              type="button"
+            >
+              {">"}
+            </button>
           </div>
-          <p className="text-base font-extrabold">{weekLabel}</p>
+          <p className="text-center text-base font-extrabold" aria-live="polite">{dateLabel}</p>
           <div className="flex rounded-full border border-[#d9bda8] bg-[#fffaf5] p-1 text-sm font-bold">
             <button className={`rounded-full px-3 py-1.5 ${view === "day" ? "bg-[#a36c45] text-white" : "text-[#8b6a58]"}`} onClick={() => onChangeView("day")} type="button">Ngày</button>
             <button className={`rounded-full px-3 py-1.5 ${view === "week" ? "bg-[#a36c45] text-white" : "text-[#8b6a58]"}`} onClick={() => onChangeView("week")} type="button">Tuần</button>
@@ -1115,86 +1277,204 @@ function SchedulePanel({
           </div>
         </div>
 
-        <div className="min-h-0 overflow-auto rounded-2xl border border-[#f0ded1]">
-          <div
-            className="relative grid min-h-[760px] min-w-[1120px]"
-            style={{
-              gridTemplateColumns: "64px repeat(7, minmax(150px, 1fr))",
-              gridTemplateRows: `42px repeat(${timeSlots.length}, 52px)`,
-            }}
-          >
-            <div className="sticky left-0 top-0 z-20 border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
-            {dayLabels.map((day, dayIndex) => (
-              <div
-                className="sticky top-0 z-10 grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] text-xs font-extrabold uppercase text-[#8b6a58]"
-                key={day}
-                style={{ gridColumn: dayIndex + 2, gridRow: 1 }}
-              >
-                {day}
-              </div>
-            ))}
-            {timeSlots.map((hour, hourIndex) => (
-              <div
-                className="sticky left-0 z-10 border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
-                key={hour}
-                style={{ gridColumn: 1, gridRow: hourIndex + 2 }}
-              >
-                {`${String(hour).padStart(2, "0")}:00`}
-              </div>
-            ))}
-            {timeSlots.flatMap((hour, hourIndex) =>
-              dayLabels.map((day, dayIndex) => (
-                <div
-                  className="border-b border-r border-[#f0ded1] bg-white"
-                  key={`${day}-${hour}`}
-                  style={{ gridColumn: dayIndex + 2, gridRow: hourIndex + 2 }}
-                />
-              )),
-            )}
-            {events.map((event) => (
-              <button
-                className="z-10 m-1 min-h-[82px] overflow-hidden rounded-xl p-2.5 text-left text-white shadow-[0_10px_20px_rgba(123,82,52,0.18)] transition hover:-translate-y-0.5"
-                key={event.id}
-                onClick={() => onEdit(event)}
-                style={{
-                  backgroundColor: event.color,
-                  gridColumn: event.dayIndex + 2,
-                  gridRow: `${event.startHour - 5} / span ${event.durationHours}`,
-                }}
-                type="button"
-              >
-                <div className="flex min-w-0 items-start justify-between gap-1.5">
-                  <p className="min-w-0 text-sm font-extrabold leading-5">
-                    {`${String(event.startHour).padStart(2, "0")}:00 - ${String(event.startHour + event.durationHours).padStart(2, "0")}:00`}
-                  </p>
-                  <span className="shrink-0 rounded-full bg-white/24 px-1.5 py-0.5 text-[10px] font-bold leading-4">
-                    {repeatTypeLabels[event.repeatType]}
-                  </span>
-                </div>
-                <p className="mt-1 line-clamp-2 text-xs font-bold leading-4">{event.className}</p>
-                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-white/86">
-                  {event.teacher} · {event.room}
-                </p>
-              </button>
-            ))}
-          </div>
-        </div>
+        {view === "month" ? (
+          <MonthScheduleGrid events={events} onEdit={onEdit} selectedDate={selectedDate} />
+        ) : (
+          <TimeScheduleGrid
+            days={getCalendarDayColumns(selectedDate, view)}
+            events={events}
+            onEdit={onEdit}
+          />
+        )}
       </div>
     </section>
+  );
+}
+
+function TimeScheduleGrid({
+  days,
+  events,
+  onEdit,
+}: {
+  days: CalendarDayColumn[];
+  events: ScheduleEvent[];
+  onEdit: (event: ScheduleEvent) => void;
+}) {
+  const visibleEvents = events.filter((event) => days.some((day) => doesEventOccurOnDate(event, day.date)));
+  const isDayView = days.length === 1;
+
+  return (
+    <div className="min-h-0 overflow-auto rounded-2xl border border-[#f0ded1]">
+      <div
+        className={`relative grid min-h-[760px] ${isDayView ? "min-w-[520px]" : "min-w-[1120px]"}`}
+        style={{
+          gridTemplateColumns: `64px repeat(${days.length}, minmax(${isDayView ? "420px" : "150px"}, 1fr))`,
+          gridTemplateRows: `42px repeat(${calendarTimeSlots.length}, 26px)`,
+        }}
+      >
+        <div className="sticky left-0 top-0 z-20 border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
+        {days.map((day, columnIndex) => (
+          <div
+            className="sticky top-0 z-10 grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] px-2 text-xs font-extrabold uppercase text-[#8b6a58]"
+            key={day.date.toISOString()}
+            style={{ gridColumn: columnIndex + 2, gridRow: 1 }}
+          >
+            {day.label}
+          </div>
+        ))}
+        {calendarTimeSlots.map((hour, slotIndex) => (
+          <div
+            className="sticky left-0 z-10 border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
+            key={hour}
+            style={{ gridColumn: 1, gridRow: slotIndex + 2 }}
+          >
+            {Number.isInteger(hour) ? formatHourValue(hour) : null}
+          </div>
+        ))}
+        {calendarTimeSlots.flatMap((hour, slotIndex) =>
+          days.map((day, columnIndex) => (
+            <div
+              className="border-b border-r border-[#f0ded1] bg-white"
+              key={`${day.date.toISOString()}-${hour}`}
+              style={{ gridColumn: columnIndex + 2, gridRow: slotIndex + 2 }}
+            />
+          )),
+        )}
+        {visibleEvents.map((event) => {
+          const columnIndex = days.findIndex((day) => doesEventOccurOnDate(event, day.date));
+          return (
+            <ScheduleEventCard
+              column={columnIndex + 2}
+              event={event}
+              key={event.id}
+              onEdit={onEdit}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScheduleEventCard({
+  column,
+  event,
+  onEdit,
+}: {
+  column: number;
+  event: ScheduleEvent;
+  onEdit: (event: ScheduleEvent) => void;
+}) {
+  const startTime = formatHourValue(event.startHour);
+  const endTime = formatHourValue(event.startHour + event.durationHours);
+  const eventLabel = getScheduleEventLabel(event);
+  const fullDescription = `${startTime} - ${endTime} · ${eventLabel} · ${event.teacher} · ${event.room}`;
+
+  return (
+    <button
+      aria-label={fullDescription}
+      className="z-10 m-1 min-h-0 min-w-0 overflow-hidden rounded-xl p-2 text-left text-white shadow-[0_8px_18px_rgba(123,82,52,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_24px_rgba(123,82,52,0.22)]"
+      onClick={() => onEdit(event)}
+      style={{
+        backgroundColor: event.color,
+        gridColumn: column,
+        gridRow: `${(event.startHour - 7) * 2 + 2} / span ${Math.max(1, Math.round(event.durationHours * 2))}`,
+      }}
+      title={fullDescription}
+      type="button"
+    >
+      <div className="flex min-w-0 items-center justify-between gap-1">
+        <span className="min-w-0 truncate text-[11px] font-extrabold leading-4">
+          {startTime} - {endTime}
+        </span>
+        <span className="max-w-[48%] shrink-0 truncate rounded-full bg-white/24 px-1.5 py-0.5 text-[9px] font-bold leading-3">
+          {repeatTypeLabels[event.repeatType]}
+        </span>
+      </div>
+      <p className="mt-1 truncate text-xs font-extrabold leading-4">{eventLabel}</p>
+      <p className="mt-0.5 truncate text-[10px] font-semibold leading-4 text-white/88">
+        {event.teacher} · {event.room}
+      </p>
+    </button>
+  );
+}
+
+function MonthScheduleGrid({
+  events,
+  onEdit,
+  selectedDate,
+}: {
+  events: ScheduleEvent[];
+  onEdit: (event: ScheduleEvent) => void;
+  selectedDate: Date;
+}) {
+  const monthDays = getMonthCalendarDays(selectedDate);
+  const today = startOfDay(new Date());
+
+  return (
+    <div className="min-h-0 overflow-auto rounded-2xl border border-[#f0ded1]">
+      <div className="grid min-w-[980px] grid-cols-7 bg-[#f0ded1] gap-px">
+        {dayLabels.map((day) => (
+          <div className="bg-[#fffaf5] px-3 py-3 text-center text-xs font-extrabold uppercase text-[#8b6a58]" key={day}>
+            {day}
+          </div>
+        ))}
+        {monthDays.map((date) => {
+          const dayEvents = events.filter((event) => doesEventOccurOnDate(event, date));
+          const isCurrentMonth = date.getMonth() === selectedDate.getMonth();
+          const isToday = date.getTime() === today.getTime();
+
+          return (
+            <div
+              className={`min-h-28 p-2 ${isCurrentMonth ? "bg-white" : "bg-[#fffaf5] text-[#b0927c]"}`}
+              key={date.toISOString()}
+            >
+              <div className={`mb-2 grid size-7 place-items-center rounded-full text-xs font-extrabold ${isToday ? "bg-[#a36c45] text-white" : ""}`}>
+                {date.getDate()}
+              </div>
+              <div className="grid gap-1">
+                {dayEvents.slice(0, 3).map((event) => (
+                  <button
+                    aria-label={`${getScheduleEventLabel(event)}, ${formatHourValue(event.startHour)}`}
+                    className="flex min-w-0 items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1.5 text-left text-[10px] font-bold text-white"
+                    key={`${date.toISOString()}-${event.id}`}
+                    onClick={() => onEdit(event)}
+                    style={{ backgroundColor: event.color }}
+                    title={`${getScheduleEventLabel(event)} · ${event.teacher} · ${event.room}`}
+                    type="button"
+                  >
+                    <span className="shrink-0">{formatHourValue(event.startHour)}</span>
+                    <span className="min-w-0 truncate">{getScheduleEventLabel(event)}</span>
+                  </button>
+                ))}
+                {dayEvents.length > 3 ? (
+                  <span className="px-2 text-[10px] font-extrabold text-[#8b5632]">+{dayEvents.length - 3} tiết khác</span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 function TeacherScheduleModal({
   events,
   onClose,
+  selectedDate,
   teacherName,
   weekLabel,
 }: {
   events: ScheduleEvent[];
   onClose: () => void;
+  selectedDate: Date;
   teacherName: string;
   weekLabel: string;
 }) {
+  const weekDays = getCalendarDayColumns(selectedDate, "week");
+  const visibleEvents = events.filter((event) => weekDays.some((day) => doesEventOccurOnDate(event, day.date)));
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#2d211b]/35 px-3 py-4">
       <section className="grid max-h-[92dvh] w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-3xl border border-[#ead8ca] bg-white shadow-2xl">
@@ -1214,7 +1494,7 @@ function TeacherScheduleModal({
         </div>
 
         <div className="min-h-0 overflow-auto p-3">
-          {events.length === 0 ? (
+          {visibleEvents.length === 0 ? (
             <div className="grid min-h-[260px] place-items-center rounded-3xl border border-dashed border-[#d9bda8] bg-[#fffaf5] p-6 text-center">
               <p className="text-base font-extrabold text-[#8b5632]">Giáo viên này chưa có lịch dạy trong tuần đang xem.</p>
             </div>
@@ -1223,56 +1503,56 @@ function TeacherScheduleModal({
               className="relative grid min-h-[680px] min-w-[1040px] rounded-2xl border border-[#f0ded1]"
               style={{
                 gridTemplateColumns: "64px repeat(7, minmax(140px, 1fr))",
-                gridTemplateRows: `42px repeat(${timeSlots.length}, 48px)`,
+                gridTemplateRows: `42px repeat(${calendarTimeSlots.length}, 24px)`,
               }}
             >
               <div className="sticky left-0 top-0 z-20 border-b border-r border-[#f0ded1] bg-[#fffaf5]" />
-              {dayLabels.map((day, dayIndex) => (
+              {weekDays.map((day, dayIndex) => (
                 <div
                   className="sticky top-0 z-10 grid place-items-center border-b border-r border-[#f0ded1] bg-[#fffaf5] text-xs font-extrabold uppercase text-[#8b6a58]"
-                  key={day}
+                  key={day.date.toISOString()}
                   style={{ gridColumn: dayIndex + 2, gridRow: 1 }}
                 >
-                  {day}
+                  {day.label}
                 </div>
               ))}
-              {timeSlots.map((hour, hourIndex) => (
+              {calendarTimeSlots.map((hour, slotIndex) => (
                 <div
                   className="sticky left-0 z-10 border-b border-r border-[#f0ded1] bg-white px-2 py-2 text-xs font-semibold text-[#8b6a58]"
                   key={hour}
-                  style={{ gridColumn: 1, gridRow: hourIndex + 2 }}
+                  style={{ gridColumn: 1, gridRow: slotIndex + 2 }}
                 >
-                  {`${String(hour).padStart(2, "0")}:00`}
+                  {Number.isInteger(hour) ? formatHourValue(hour) : null}
                 </div>
               ))}
-              {timeSlots.flatMap((hour) =>
-                dayLabels.map((day, dayIndex) => (
+              {calendarTimeSlots.flatMap((hour, slotIndex) =>
+                weekDays.map((day, dayIndex) => (
                   <div
                     className="border-b border-r border-[#f0ded1] bg-white"
-                    key={`${day}-${hour}-teacher-modal`}
-                    style={{ gridColumn: dayIndex + 2, gridRow: hour - 5 }}
+                    key={`${day.date.toISOString()}-${hour}-teacher-modal`}
+                    style={{ gridColumn: dayIndex + 2, gridRow: slotIndex + 2 }}
                   />
                 )),
               )}
-              {events.map((event) => (
+              {visibleEvents.map((event) => (
                 <article
                   className="z-10 m-1 min-h-[76px] overflow-hidden rounded-xl p-2.5 text-left text-white shadow-[0_10px_20px_rgba(123,82,52,0.18)]"
                   key={event.id}
                   style={{
                     backgroundColor: event.color,
-                    gridColumn: event.dayIndex + 2,
-                    gridRow: `${event.startHour - 5} / span ${event.durationHours}`,
+                    gridColumn: weekDays.findIndex((day) => doesEventOccurOnDate(event, day.date)) + 2,
+                    gridRow: `${(event.startHour - 7) * 2 + 2} / span ${Math.max(1, Math.round(event.durationHours * 2))}`,
                   }}
                 >
                   <div className="flex min-w-0 items-start justify-between gap-1.5">
                     <p className="min-w-0 text-sm font-extrabold leading-5">
-                      {`${String(event.startHour).padStart(2, "0")}:00 - ${String(event.startHour + event.durationHours).padStart(2, "0")}:00`}
+                      {`${formatHourValue(event.startHour)} - ${formatHourValue(event.startHour + event.durationHours)}`}
                     </p>
                     <span className="shrink-0 rounded-full bg-white/24 px-1.5 py-0.5 text-[10px] font-bold leading-4">
                       {repeatTypeLabels[event.repeatType]}
                     </span>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs font-bold leading-4">{event.className}</p>
+                  <p className="mt-1 line-clamp-2 text-xs font-bold leading-4">{getScheduleEventLabel(event)}</p>
                   <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-white/86">{event.room}</p>
                 </article>
               ))}
@@ -1364,14 +1644,37 @@ function ScheduleFormModal({
             Thời lượng
             <select
               className="h-11 rounded-2xl border border-[#e3d6ca] bg-white px-4 text-sm font-semibold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
-              onChange={(event) => onChange({ ...form, durationHours: Number(event.target.value) })}
-              value={form.durationHours}
+              onChange={(event) =>
+                onChange({
+                  ...form,
+                  durationHours: event.target.value === "other" ? 1.5 : Number(event.target.value),
+                })
+              }
+              value={isPresetDuration(form.durationHours) ? String(form.durationHours) : "other"}
             >
               <option value={1}>1 giờ</option>
               <option value={2}>2 giờ</option>
               <option value={3}>3 giờ</option>
+              <option value="other">Khác...</option>
             </select>
           </label>
+
+          {!isPresetDuration(form.durationHours) ? (
+            <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
+              Thời lượng tùy chỉnh (giờ)
+              <input
+                className="h-11 rounded-2xl border border-[#e3d6ca] bg-white px-4 text-sm font-semibold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
+                max={12}
+                min={0.5}
+                onChange={(event) => onChange({ ...form, durationHours: Number(event.target.value) })}
+                required
+                step={0.5}
+                type="number"
+                value={form.durationHours}
+              />
+              <span className="text-xs font-semibold text-[#8b6a58]">Nhập từ 0,5 đến 12 giờ, theo bước 0,5 giờ.</span>
+            </label>
+          ) : null}
 
           <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
             Phòng học
@@ -1944,6 +2247,79 @@ function TeachersPanel({
         ))}
       </section>
     </div>
+  );
+}
+
+function SettingsPanel() {
+  const showHeight = useSearchResultSettings((state) => state.showHeight);
+  const showWeight = useSearchResultSettings((state) => state.showWeight);
+  const setShowHeight = useSearchResultSettings((state) => state.setShowHeight);
+  const setShowWeight = useSearchResultSettings((state) => state.setShowWeight);
+
+  useEffect(() => {
+    void useSearchResultSettings.persist.rehydrate();
+  }, []);
+
+  return (
+    <div className="grid gap-4">
+      <PanelHeader
+        description="Chọn các thông tin phụ huynh được phép nhìn thấy khi tra cứu học viên."
+        title="Cài đặt"
+      />
+      <section className="rounded-3xl border border-[#ead8ca] bg-white p-5 shadow-sm">
+        <div className="max-w-2xl">
+          <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#a36c45]">
+            Kết quả tra cứu học viên
+          </p>
+          <h2 className="mt-2 text-2xl font-extrabold">Thông tin hiển thị</h2>
+          <p className="mt-2 text-sm leading-6 text-[#725e51]">
+            Các lựa chọn này được áp dụng cho phần kết quả tại cổng phụ huynh trên trình duyệt hiện tại.
+          </p>
+
+          <div className="mt-5 grid gap-3">
+            <SettingsCheckbox
+              checked={showHeight}
+              description="Hiển thị chiều cao hiện tại của học viên trong kết quả tra cứu."
+              label="Chiều cao"
+              onChange={setShowHeight}
+            />
+            <SettingsCheckbox
+              checked={showWeight}
+              description="Hiển thị cân nặng hiện tại của học viên trong kết quả tra cứu."
+              label="Cân nặng"
+              onChange={setShowWeight}
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SettingsCheckbox({
+  checked,
+  description,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-[#ead8ca] bg-[#fffaf5] p-4 transition hover:border-[#d9bda8]">
+      <input
+        checked={checked}
+        className="mt-1 size-5 shrink-0 accent-[#a36c45]"
+        onChange={(event) => onChange(event.target.checked)}
+        type="checkbox"
+      />
+      <span>
+        <span className="block font-extrabold text-[#2d211b]">{label}</span>
+        <span className="mt-1 block text-sm leading-6 text-[#725e51]">{description}</span>
+      </span>
+    </label>
   );
 }
 

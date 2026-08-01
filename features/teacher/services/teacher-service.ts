@@ -1,5 +1,7 @@
+import { api } from "@/shared/services/api";
 import type { AttendanceStatus, AttendanceStudent, TeacherLesson, TeacherOption } from "../types";
 
+/*
 // =========================
 // MOCK DATA - DANG BAT DE TEST DIEM DANH
 // Khi muon dung API that:
@@ -115,16 +117,18 @@ export const teacherService = {
     mockRosterByLesson.set(lessonId, updatedRoster);
   },
 };
+*/
 
-/*
 // =========================
-// REAL API - DANG TAM COMMENT DE TEST MOCK
-// Khi muon dung API that:
-// 1. Comment block mock phia tren.
-// 2. Mo block nay ra.
+// REAL API - ĐANG BẬT
 // =========================
 
-import { api } from "@/shared/services/api";
+const attendanceStatusValues: Record<AttendanceStatus, number> = {
+  PRESENT: 0,
+  ABSENT: 1,
+  LATE: 2,
+  EXCUSED: 3,
+};
 
 export const teacherService = {
   getMe: () => api.get<TeacherOption>("/api/teachers/me"),
@@ -132,6 +136,11 @@ export const teacherService = {
   getLessonRoster: (lessonId: number) =>
     api.get<AttendanceStudent[]>(`/api/attendances/lesson/${lessonId}`),
   markLesson: (lessonId: number, items: { studentId: number; status: AttendanceStatus; note?: string | null }[]) =>
-    api.put<void>(`/api/attendances/lesson/${lessonId}`, { items }),
+    api.put<void>(`/api/attendances/lesson/${lessonId}`, {
+      items: items.map((item) => ({
+        note: item.note ?? null,
+        status: attendanceStatusValues[item.status],
+        studentId: item.studentId,
+      })),
+    }),
 };
-*/

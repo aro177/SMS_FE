@@ -11,13 +11,16 @@ export type RegistrationRequest = {
 export type ScheduleEvent = {
   id: number;
   classroomId?: number;
+  code: string;
   className: string;
   teacher: string;
   room: string;
   dayIndex: number;
+  occurrenceDate: string;
   startHour: number;
   durationHours: number;
   status: "confirmed" | "draft" | "conflict";
+  takeAttendanceStatus: boolean;
   repeatType: "fixed" | "temporary";
   color: string;
 };
@@ -38,4 +41,6 @@ export type Lesson = {
   title: string;
   startTime: string;
   endTime: string;
+  code: string;
+  takeAttendanceStatus: boolean;
 };
