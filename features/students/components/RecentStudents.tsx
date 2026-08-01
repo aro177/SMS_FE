@@ -12,7 +12,9 @@ export function RecentStudents({ students }: RecentStudentsProps) {
         {students.map((student) => (
           <div className="py-3 first:pt-0 last:pb-0" key={student.name}>
             <p className="font-semibold text-[#2d211b]">{student.name}</p>
-            <p className="mt-1 text-sm text-[#725e51]">{student.className}</p>
+            <p className="mt-1 text-sm text-[#725e51]">
+              {student.classNames.length > 0 ? student.classNames.join(", ") : "Chưa có lớp"}
+            </p>
             <p className="mt-1 text-xs font-medium text-[#a36c45]">Phụ huynh: {student.parent}</p>
           </div>
         ))}

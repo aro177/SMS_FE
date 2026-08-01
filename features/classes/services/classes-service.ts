@@ -1,5 +1,5 @@
-import { publicClasses } from "@/features/guest/data/guest-data";
-import type { PagedResult } from "@/shared/services/api";
+// import { publicClasses } from "@/features/guest/data/guest-data";
+import { api, type PagedResult } from "@/shared/services/api";
 import type { Classroom } from "../types";
 
 export type CreateClassroomPayload = {
@@ -11,6 +11,7 @@ export type CreateClassroomPayload = {
   capacity?: number;
 };
 
+/*
 const mockTeacherNames = ["Nguyễn Thị Lan", "Trần Minh Khoa", "Phạm Gia Hân", "Mai Thanh Hương"];
 
 let mockClassrooms: Classroom[] = publicClasses.map((classroom, index) => ({
@@ -82,14 +83,12 @@ export const classesService = {
     mockClassrooms = mockClassrooms.filter((classroom) => classroom.id !== id);
   },
 };
+*/
 
-// REAL API - ĐANG TẠM COMMENT ĐỂ TEST MOCK
-//
-// import { api } from "@/shared/services/api";
-//
-// export const classesService = {
-//   getClasses: () => api.get<PagedResult<Classroom>>("/api/classrooms?page=1&pageSize=100"),
-//   createClass: (payload: CreateClassroomPayload) => api.post<Classroom>("/api/classrooms", payload),
-//   updateClass: (id: number, payload: CreateClassroomPayload) => api.put<void>(`/api/classrooms/${id}`, payload),
-//   deleteClass: (id: number) => api.delete<void>(`/api/classrooms/${id}`),
-// };
+// REAL API - ĐANG BẬT
+export const classesService = {
+  getClasses: () => api.get<PagedResult<Classroom>>("/api/classrooms?page=1&pageSize=100"),
+  createClass: (payload: CreateClassroomPayload) => api.post<Classroom>("/api/classrooms", payload),
+  updateClass: (id: number, payload: CreateClassroomPayload) => api.put<void>(`/api/classrooms/${id}`, payload),
+  deleteClass: (id: number) => api.delete<void>(`/api/classrooms/${id}`),
+};

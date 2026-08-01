@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { teacherService } from "../services/teacher-service";
 import type { AttendanceStatus, AttendanceStudent, TeacherLesson, TeacherOption } from "../types";
+import { LogoutButton } from "@/features/auth/components/LogoutButton";
 
 const attendanceOptions: { label: string; value: AttendanceStatus }[] = [
   { label: "Có mặt", value: "PRESENT" },
@@ -17,14 +18,23 @@ export function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [notice, setNotice] = useState("Đang tải lịch dạy hôm nay.");
+  const [noteStudentId, setNoteStudentId] = useState<number | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
 
   const selectedLesson = useMemo(
     () => lessons.find((lesson) => lesson.id === selectedLessonId) ?? null,
     [lessons, selectedLessonId],
   );
 
+  const noteStudent = useMemo(
+    () => roster.find((student) => student.studentId === noteStudentId) ?? null,
+    [noteStudentId, roster],
+  );
+
   const openLesson = useCallback(async (lesson: TeacherLesson, showLoading = true) => {
     setSelectedLessonId(lesson.id);
+    setNoteStudentId(null);
+    setNoteDraft("");
     if (showLoading) {
       setAttendanceLoading(true);
     }
@@ -40,6 +50,29 @@ export function TeacherDashboard() {
       setAttendanceLoading(false);
     }
   }, []);
+
+  function openNote(student: AttendanceStudent) {
+    setNoteStudentId(student.studentId);
+    setNoteDraft(student.note ?? "");
+  }
+
+  function closeNote() {
+    setNoteStudentId(null);
+    setNoteDraft("");
+  }
+
+  function saveNoteDraft() {
+    if (!noteStudent) {
+      return;
+    }
+
+    const note = noteDraft.trim() || null;
+    setRoster((items) =>
+      items.map((student) => (student.studentId === noteStudent.studentId ? { ...student, note } : student)),
+    );
+    setNotice(`Đã lưu ghi chú nháp cho ${noteStudent.studentName}.`);
+    closeNote();
+  }
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -102,14 +135,17 @@ export function TeacherDashboard() {
               </h1>
               <p className="mt-2 text-sm font-bold text-[#8b5632]">{notice}</p>
             </div>
-            <button
-              className="h-11 rounded-full border border-[#d9bda8] bg-white px-5 text-sm font-extrabold text-[#6f4b34] transition hover:bg-[#fff5ed]"
-              disabled={loading}
-              onClick={() => void loadToday()}
-              type="button"
-            >
-              {loading ? "Đang tải..." : "Tải lại"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="h-11 rounded-full border border-[#d9bda8] bg-white px-5 text-sm font-extrabold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+                disabled={loading}
+                onClick={() => void loadToday()}
+                type="button"
+              >
+                {loading ? "Đang tải..." : "Tải lại"}
+              </button>
+              <LogoutButton className="inline-flex h-11 items-center justify-center rounded-full bg-[#2d211b] px-5 text-sm font-extrabold text-white transition hover:bg-[#4a382f] disabled:cursor-not-allowed disabled:opacity-60" />
+            </div>
           </div>
         </header>
 
@@ -210,18 +246,34 @@ export function TeacherDashboard() {
                         </label>
                       ))}
                     </div>
+                    <button
+                      className={`mt-3 flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-left text-sm font-extrabold transition ${
+                        student.note
+                          ? "border-[#a36c45] bg-[#fff1e5] text-[#8b5632]"
+                          : "border-[#d9bda8] bg-white text-[#6f4b34] hover:bg-[#fffaf5]"
+                      }`}
+                      onClick={() => openNote(student)}
+                      type="button"
+                    >
+                      <span className="min-w-0">
+                        <span className="block">{student.note ? "Sửa ghi chú" : "Thêm ghi chú"}</span>
+                        {student.note ? <span className="mt-0.5 block truncate text-xs font-semibold">{student.note}</span> : null}
+                      </span>
+                      <span aria-hidden="true" className="shrink-0 text-lg">✎</span>
+                    </button>
                   </article>
                 ))}
               </div>
 
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                   <thead className="sticky top-0 bg-white text-[#725e51] shadow-[0_1px_0_#ead8ca]">
                     <tr>
                       <th className="w-20 px-5 py-3 font-extrabold">STT</th>
                       <th className="px-5 py-3 font-extrabold">Học sinh</th>
                       <th className="w-52 px-5 py-3 text-center font-extrabold">Có mặt</th>
                       <th className="w-52 px-5 py-3 text-center font-extrabold">Vắng</th>
+                      <th className="w-64 px-5 py-3 font-extrabold">Ghi chú</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -253,6 +305,20 @@ export function TeacherDashboard() {
                             </label>
                           </td>
                         ))}
+                        <td className="px-5 py-4">
+                          <button
+                            className={`flex min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left font-extrabold transition ${
+                              student.note
+                                ? "border-[#a36c45] bg-[#fff1e5] text-[#8b5632]"
+                                : "border-[#d9bda8] bg-white text-[#6f4b34] hover:bg-[#fffaf5]"
+                            }`}
+                            onClick={() => openNote(student)}
+                            type="button"
+                          >
+                            <span className="min-w-0 truncate">{student.note || "Thêm ghi chú"}</span>
+                            <span aria-hidden="true" className="shrink-0 text-base">✎</span>
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -282,7 +348,89 @@ export function TeacherDashboard() {
           </form>
         </section>
       </div>
+
+      {noteStudent ? (
+        <AttendanceNoteModal
+          note={noteDraft}
+          onChange={setNoteDraft}
+          onClose={closeNote}
+          onSave={saveNoteDraft}
+          studentName={noteStudent.studentName}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function AttendanceNoteModal({
+  note,
+  onChange,
+  onClose,
+  onSave,
+  studentName,
+}: {
+  note: string;
+  onChange: (note: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+  studentName: string;
+}) {
+  return (
+    <div
+      aria-labelledby="attendance-note-title"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[#2d211b]/45 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      role="dialog"
+    >
+      <section className="max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl border border-[#ead8ca] bg-white p-4 shadow-2xl sm:max-w-lg sm:rounded-3xl sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#a36c45]">Ghi chú điểm danh</p>
+            <h2 className="mt-1 truncate text-xl font-extrabold text-[#2d211b] sm:text-2xl" id="attendance-note-title">
+              {studentName}
+            </h2>
+          </div>
+          <button
+            aria-label="Đóng ghi chú"
+            className="grid size-10 shrink-0 place-items-center rounded-full border border-[#d9bda8] bg-white text-xl font-bold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <label className="mt-5 grid gap-2 text-sm font-extrabold text-[#6f4b34]">
+          Nội dung ghi chú
+          <textarea
+            autoFocus
+            className="min-h-36 resize-y rounded-2xl border border-[#e3d6ca] bg-[#fffaf5] px-4 py-3 text-base font-medium leading-6 text-[#2d211b] outline-none transition placeholder:text-[#aa9485] focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
+            maxLength={500}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="Ví dụ: Bé đến muộn 10 phút, sức khỏe chưa tốt..."
+            value={note}
+          />
+        </label>
+        <div className="mt-2 flex justify-end text-xs font-bold text-[#8b6a58]">{note.length}/500</div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <button
+            className="h-12 rounded-full border border-[#d9bda8] bg-white px-5 text-sm font-extrabold text-[#6f4b34] transition hover:bg-[#fff5ed]"
+            onClick={onClose}
+            type="button"
+          >
+            Hủy
+          </button>
+          <button
+            className="h-12 rounded-full bg-[#2d211b] px-5 text-sm font-extrabold text-white transition hover:bg-[#4a382f]"
+            onClick={onSave}
+            type="button"
+          >
+            Lưu ghi chú nháp
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

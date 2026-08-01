@@ -147,6 +147,8 @@ export const demoChildResults: ChildSearchResult[] = [
     currentClass: "Yoga nền tảng buổi sáng",
     attendanceRate: "94%",
     latestNote: "Tuần này con tập trung tốt. Phụ huynh nhắc con mang bình nước.",
+    height: 126,
+    weight: 24,
   },
   {
     studentId: 2,
@@ -156,5 +158,7 @@ export const demoChildResults: ChildSearchResult[] = [
     currentClass: "Vận động buổi tối",
     attendanceRate: "91%",
     latestNote: "Khả năng giữ thăng bằng và tư thế đang tiến bộ đều.",
+    height: 138,
+    weight: 32,
   },
 ];

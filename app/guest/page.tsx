@@ -1,5 +1,4 @@
 import { GuestLandingPage } from "@/features/guest/components/GuestLandingPage";
-import { demoChildResults, publicClasses } from "@/features/guest/data/guest-data";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom } from "@/features/classes/types";
 import type { PublicClass } from "@/features/guest/types";
@@ -14,6 +13,8 @@ export default async function GuestPage() {
   const hasSupabaseConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const user = hasSupabaseConfig ? await getUser(await createClient()) : null;
 
+  console.log(user);
+
   let hasUser = true;
   if(!user) {
     hasUser = false;
@@ -22,7 +23,6 @@ export default async function GuestPage() {
   const userRole = user?.app_metadata?.role;
 
   return <GuestLandingPage
-      childResults={demoChildResults}
       classes={classes}
       hasUser={hasUser}
       userRole={userRole}/>;
@@ -31,9 +31,9 @@ export default async function GuestPage() {
 async function loadPublicClasses(): Promise<PublicClass[]> {
   try {
     const result = await classesService.getClasses();
-    return result.items.length > 0 ? result.items.map(mapClassroomToPublicClass) : publicClasses;
+    return result.items.map(mapClassroomToPublicClass);
   } catch {
-    return publicClasses;
+    return [];
   }
 }
 

@@ -1,5 +1,5 @@
-import { publicClasses } from "@/features/guest/data/guest-data";
-import type { PagedResult } from "@/shared/services/api";
+// import { publicClasses } from "@/features/guest/data/guest-data";
+import { api, type PagedResult } from "@/shared/services/api";
 import type { Student } from "../types";
 
 export type CreateStudentPayload = {
@@ -11,9 +11,10 @@ export type CreateStudentPayload = {
   parentPhone: string;
 };
 
+/*
 let mockStudents: Student[] = [
   {
-    currentClass: publicClasses[0]?.name ?? "Yoga nền tảng buổi sáng",
+    currentClass: [publicClasses[0]?.name ?? "Yoga nền tảng buổi sáng"],
     dob: "2016-08-12",
     fullname: "Lê Bảo Anh",
     height: 126,
@@ -24,7 +25,7 @@ let mockStudents: Student[] = [
     weight: 24,
   },
   {
-    currentClass: publicClasses[2]?.name ?? "Vận động buổi tối",
+    currentClass: [publicClasses[2]?.name ?? "Vận động buổi tối"],
     dob: "2014-04-22",
     fullname: "Đỗ Minh Châu",
     height: 138,
@@ -35,7 +36,7 @@ let mockStudents: Student[] = [
     weight: 32,
   },
   {
-    currentClass: publicClasses[1]?.name ?? "Thiền thở sau giờ học",
+    currentClass: [publicClasses[1]?.name ?? "Thiền thở sau giờ học"],
     dob: "2015-11-03",
     fullname: "Hoàng Nam Phong",
     height: 132,
@@ -68,7 +69,7 @@ export const studentsService = {
   },
   async createStudent(payload: CreateStudentPayload) {
     const student: Student = {
-      currentClass: publicClasses[0]?.name ?? "Chưa có lớp",
+      currentClass: [publicClasses[0]?.name ?? "Chưa có lớp"],
       dob: payload.dob,
       fullname: payload.fullname,
       height: payload.height,
@@ -83,12 +84,10 @@ export const studentsService = {
     return student;
   },
 };
+*/
 
-// REAL API - ĐANG TẠM COMMENT ĐỂ TEST MOCK
-//
-// import { api } from "@/shared/services/api";
-//
-// export const studentsService = {
-//   getStudents: () => api.get<PagedResult<Student>>("/api/students?page=1&pageSize=100"),
-//   createStudent: (payload: CreateStudentPayload) => api.post<Student>("/api/students", payload),
-// };
+// REAL API - ĐANG BẬT
+export const studentsService = {
+  getStudents: () => api.get<PagedResult<Student>>("/api/students?page=1&pageSize=100"),
+  createStudent: (payload: CreateStudentPayload) => api.post<Student>("/api/students", payload),
+};

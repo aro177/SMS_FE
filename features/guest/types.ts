@@ -35,6 +35,8 @@ export type ChildSearchResult = {
   currentClass: string;
   attendanceRate: string;
   latestNote: string;
+  height?: number | null;
+  weight?: number | null;
 };
 
 export type AttendanceHistoryItem = {

@@ -7,7 +7,7 @@ export type Student = {
   parentId?: number | null;
   parentName?: string | null;
   parentPhone?: string | null;
-  currentClass?: string | null;
+  currentClass: string[];
 };
 
 export type Parent = {
@@ -19,5 +19,5 @@ export type Parent = {
 export type RecentStudent = {
   name: string;
   parent: string;
-  className: string;
+  classNames: string[];
 };
