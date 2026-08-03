@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL =
+  typeof window === "undefined"
+    ? process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ""
+    : process.env.NEXT_PUBLIC_API_URL ?? "";
 
 import { createClient } from "@/utils/supabase/client";
 
