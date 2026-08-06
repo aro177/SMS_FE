@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useSearchResultSettings } from "@/features/settings/store/use-search-result-settings";
+import { fetchSearchResultSettings } from "@/features/settings/services/search-result-settings-service";
+import type { SearchResultSettings } from "@/features/settings/types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
 import type { AttendanceHistoryItem, ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
 import { guestService } from "../services/guest-service";
@@ -9,6 +10,7 @@ import { guestService } from "../services/guest-service";
 type GuestLandingPageProps = {
   classes: PublicClass[];
   hasUser: boolean | null;
+  searchResultSettings: SearchResultSettings;
   userRole: string | null;
 };
 
@@ -27,9 +29,8 @@ const emptyRegistrationForm: ClassRegistrationForm = {
   note: "",
 };
 
-export function GuestLandingPage({ classes, hasUser, userRole }: GuestLandingPageProps) {
-  const showHeight = useSearchResultSettings((state) => state.showHeight);
-  const showWeight = useSearchResultSettings((state) => state.showWeight);
+export function GuestLandingPage({ classes, hasUser, searchResultSettings, userRole }: GuestLandingPageProps) {
+  const [displaySettings, setDisplaySettings] = useState(searchResultSettings);
   const [activeTab, setActiveTab] = useState<GuestTab>("classes");
   const [selectedClassId, setSelectedClassId] = useState(classes[0]?.id ?? 0);
   const [subjectFilter, setSubjectFilter] = useState<SubjectFilter>("all");
@@ -53,8 +54,10 @@ export function GuestLandingPage({ classes, hasUser, userRole }: GuestLandingPag
           : "/teacher";
 
   useEffect(() => {
-    void useSearchResultSettings.persist.rehydrate();
+    void fetchSearchResultSettings().then(setDisplaySettings).catch(() => undefined);
   }, []);
+
+  const { showHeight, showWeight } = displaySettings;
 
   const filteredClasses = useMemo(
     () =>

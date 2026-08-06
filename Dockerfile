@@ -35,6 +35,7 @@ RUN addgroup --system --gid 1001 nextjs \
     && adduser --system --uid 1001 --ingroup nextjs nextjs
 
 COPY --from=build --chown=nextjs:nextjs /app/public ./public
+COPY --from=build --chown=nextjs:nextjs /app/data ./data
 COPY --from=build --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nextjs /app/.next/static ./.next/static
 

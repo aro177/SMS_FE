@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { adminService } from "@/features/admin/services/admin-service";
 import type { RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
@@ -12,7 +12,8 @@ import { guestService } from "@/features/guest/services/guest-service";
 import { RecentStudents } from "@/features/students/components/RecentStudents";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent } from "@/features/students/types";
-import { useSearchResultSettings } from "@/features/settings/store/use-search-result-settings";
+import { updateSearchResultSettings } from "@/features/settings/services/search-result-settings-service";
+import type { SearchResultSettings } from "@/features/settings/types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
 
 type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "settings";
@@ -29,6 +30,7 @@ type AdminDashboardShellProps = {
   classes: ClassroomOverview[];
   registrations: RegistrationRequest[];
   scheduleEvents: ScheduleEvent[];
+  searchResultSettings: SearchResultSettings;
   students: RecentStudent[];
   teachers: Teacher[];
 };
@@ -103,6 +105,7 @@ export function AdminDashboardShell({
   classes,
   registrations,
   scheduleEvents,
+  searchResultSettings,
   students,
   teachers,
 }: AdminDashboardShellProps) {
@@ -704,7 +707,7 @@ export function AdminDashboardShell({
               />
             ) : null}
 
-            {activeTab === "settings" ? <SettingsPanel /> : null}
+            {activeTab === "settings" ? <SettingsPanel initialSettings={searchResultSettings} /> : null}
           </div>
         </section>
       </div>
@@ -2250,15 +2253,28 @@ function TeachersPanel({
   );
 }
 
-function SettingsPanel() {
-  const showHeight = useSearchResultSettings((state) => state.showHeight);
-  const showWeight = useSearchResultSettings((state) => state.showWeight);
-  const setShowHeight = useSearchResultSettings((state) => state.setShowHeight);
-  const setShowWeight = useSearchResultSettings((state) => state.setShowWeight);
+function SettingsPanel({ initialSettings }: { initialSettings: SearchResultSettings }) {
+  const [settings, setSettings] = useState(initialSettings);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
 
-  useEffect(() => {
-    void useSearchResultSettings.persist.rehydrate();
-  }, []);
+  async function saveSettings(nextSettings: SearchResultSettings) {
+    const previousSettings = settings;
+    setSettings(nextSettings);
+    setSaving(true);
+    setSaveMessage("");
+
+    try {
+      const savedSettings = await updateSearchResultSettings(nextSettings);
+      setSettings(savedSettings);
+      setSaveMessage("Đã lưu và áp dụng cấu hình cho tất cả người truy cập.");
+    } catch {
+      setSettings(previousSettings);
+      setSaveMessage("Không thể lưu cấu hình. Vui lòng thử lại.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="grid gap-4">
@@ -2273,23 +2289,30 @@ function SettingsPanel() {
           </p>
           <h2 className="mt-2 text-2xl font-extrabold">Thông tin hiển thị</h2>
           <p className="mt-2 text-sm leading-6 text-[#725e51]">
-            Các lựa chọn này được áp dụng cho phần kết quả tại cổng phụ huynh trên trình duyệt hiện tại.
+            Các lựa chọn này được lưu trên server và áp dụng cho tất cả người truy cập cổng phụ huynh.
           </p>
 
           <div className="mt-5 grid gap-3">
             <SettingsCheckbox
-              checked={showHeight}
+              checked={settings.showHeight}
               description="Hiển thị chiều cao hiện tại của học viên trong kết quả tra cứu."
+              disabled={saving}
               label="Chiều cao"
-              onChange={setShowHeight}
+              onChange={(showHeight) => void saveSettings({ ...settings, showHeight })}
             />
             <SettingsCheckbox
-              checked={showWeight}
+              checked={settings.showWeight}
               description="Hiển thị cân nặng hiện tại của học viên trong kết quả tra cứu."
+              disabled={saving}
               label="Cân nặng"
-              onChange={setShowWeight}
+              onChange={(showWeight) => void saveSettings({ ...settings, showWeight })}
             />
           </div>
+          {saveMessage ? (
+            <p className="mt-4 text-sm font-bold text-[#8b5632]" role="status">
+              {saveMessage}
+            </p>
+          ) : null}
         </div>
       </section>
     </div>
@@ -2299,11 +2322,13 @@ function SettingsPanel() {
 function SettingsCheckbox({
   checked,
   description,
+  disabled,
   label,
   onChange,
 }: {
   checked: boolean;
   description: string;
+  disabled?: boolean;
   label: string;
   onChange: (checked: boolean) => void;
 }) {
@@ -2312,6 +2337,7 @@ function SettingsCheckbox({
       <input
         checked={checked}
         className="mt-1 size-5 shrink-0 accent-[#a36c45]"
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />

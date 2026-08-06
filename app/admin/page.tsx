@@ -5,6 +5,7 @@ import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom, ClassroomOverview } from "@/features/classes/types";
 import { studentsService } from "@/features/students/services/students-service";
 import type { RecentStudent, Student } from "@/features/students/types";
+import { getSearchResultSettings } from "@/features/settings/server/search-result-settings-repository";
 import { getUser } from '@/utils/supabase/queries';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
@@ -19,12 +20,13 @@ export default async function AdminPage() {
     return redirect('/signin');
   }
 
-  const [classes, students, teachers, scheduleEvents, registrations] = await Promise.all([
+  const [classes, students, teachers, scheduleEvents, registrations, searchResultSettings] = await Promise.all([
     loadClasses(),
     loadStudents(),
     loadTeachers(),
     loadScheduleEvents(),
     loadRegistrations(),
+    getSearchResultSettings(),
   ]);
 
   return (
@@ -32,6 +34,7 @@ export default async function AdminPage() {
       classes={classes}
       registrations={registrations}
       scheduleEvents={scheduleEvents}
+      searchResultSettings={searchResultSettings}
       students={students}
       teachers={teachers}
     />

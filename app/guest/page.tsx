@@ -2,13 +2,17 @@ import { GuestLandingPage } from "@/features/guest/components/GuestLandingPage";
 import { classesService } from "@/features/classes/services/classes-service";
 import type { Classroom } from "@/features/classes/types";
 import type { PublicClass } from "@/features/guest/types";
+import { getSearchResultSettings } from "@/features/settings/server/search-result-settings-repository";
 import { getUser } from '@/utils/supabase/queries';
 import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = "force-dynamic";
 
 export default async function GuestPage() {
-  const classes = await loadPublicClasses();
+  const [classes, searchResultSettings] = await Promise.all([
+    loadPublicClasses(),
+    getSearchResultSettings(),
+  ]);
 
   const hasSupabaseConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const user = hasSupabaseConfig ? await getUser(await createClient()) : null;
@@ -25,6 +29,7 @@ export default async function GuestPage() {
   return <GuestLandingPage
       classes={classes}
       hasUser={hasUser}
+      searchResultSettings={searchResultSettings}
       userRole={userRole}/>;
 }
 
