@@ -1,6 +1,6 @@
 import type { SearchResultSettings } from "../types";
 
-const settingsEndpoint = "/api/settings/student-search";
+const settingsEndpoint = "/frontend-api/settings/student-search";
 
 export async function fetchSearchResultSettings(): Promise<SearchResultSettings> {
   const response = await fetch(settingsEndpoint, { cache: "no-store" });
