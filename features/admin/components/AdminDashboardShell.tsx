@@ -2289,9 +2289,13 @@ function TeachersPanel({
 }
 
 function SettingsPanel({ initialSettings }: { initialSettings: SearchResultSettings }) {
+  const databaseResetConfirmation = "XOA TOAN BO DU LIEU";
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [resetConfirmation, setResetConfirmation] = useState("");
+  const [resettingDatabase, setResettingDatabase] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
 
   async function saveSettings(nextSettings: SearchResultSettings) {
     const previousSettings = settings;
@@ -2308,6 +2312,30 @@ function SettingsPanel({ initialSettings }: { initialSettings: SearchResultSetti
       setSaveMessage("Không thể lưu cấu hình. Vui lòng thử lại.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resetDatabase() {
+    if (resetConfirmation !== databaseResetConfirmation) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Toàn bộ dữ liệu nghiệp vụ sẽ bị xóa vĩnh viễn và không thể khôi phục. Bạn có chắc chắn muốn tiếp tục?",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setResettingDatabase(true);
+    setResetMessage("");
+
+    try {
+      await adminService.resetDatabase(resetConfirmation);
+      window.location.reload();
+    } catch {
+      setResetMessage("Không thể xóa dữ liệu. Hãy kiểm tra quyền admin và thử lại.");
+      setResettingDatabase(false);
     }
   }
 
@@ -2346,6 +2374,45 @@ function SettingsPanel({ initialSettings }: { initialSettings: SearchResultSetti
           {saveMessage ? (
             <p className="mt-4 text-sm font-bold text-[#8b5632]" role="status">
               {saveMessage}
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-[#efb5a8] bg-[#fff7f5] p-5 shadow-sm">
+        <div className="max-w-2xl">
+          <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#b44732]">
+            Khu vực nguy hiểm
+          </p>
+          <h2 className="mt-2 text-2xl font-extrabold text-[#7f2f20]">Xóa toàn bộ dữ liệu</h2>
+          <p className="mt-2 text-sm leading-6 text-[#7d5148]">
+            Thao tác này xóa vĩnh viễn toàn bộ dữ liệu học viên, phụ huynh, giáo viên, lớp học,
+            lịch học, đăng ký và điểm danh; đồng thời đặt lại các ID. Tài khoản Supabase Auth
+            không bị xóa.
+          </p>
+          <label className="mt-5 block text-sm font-bold text-[#7f2f20]">
+            Nhập chính xác <span className="font-black">{databaseResetConfirmation}</span> để xác nhận
+            <input
+              autoComplete="off"
+              className="mt-2 h-11 w-full rounded-2xl border border-[#e2a99d] bg-white px-4 text-sm font-semibold outline-none focus:border-[#b44732] focus:ring-2 focus:ring-[#f5cfc7]"
+              disabled={resettingDatabase}
+              onChange={(event) => setResetConfirmation(event.target.value)}
+              placeholder={databaseResetConfirmation}
+              type="text"
+              value={resetConfirmation}
+            />
+          </label>
+          <button
+            className="mt-4 rounded-2xl bg-[#a83e2a] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#8f3020] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={resettingDatabase || resetConfirmation !== databaseResetConfirmation}
+            onClick={() => void resetDatabase()}
+            type="button"
+          >
+            {resettingDatabase ? "Đang xóa dữ liệu..." : "Xóa toàn bộ dữ liệu"}
+          </button>
+          {resetMessage ? (
+            <p className="mt-4 text-sm font-bold text-[#9b3f2c]" role="alert">
+              {resetMessage}
             </p>
           ) : null}
         </div>

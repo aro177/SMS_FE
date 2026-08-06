@@ -6,6 +6,7 @@ import type { SearchResultSettings } from "@/features/settings/types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
 import type { AttendanceHistoryItem, ChildSearchResult, ClassRegistrationForm, PublicClass } from "../types";
 import { guestService } from "../services/guest-service";
+import { TurnstileWidget } from "./TurnstileWidget";
 
 type GuestLandingPageProps = {
   classes: PublicClass[];
@@ -20,6 +21,7 @@ type AgeFilter = "all" | string;
 type PriceFilter = "all" | PublicClass["priceTier"];
 
 const CLASSES_PER_PAGE = 3;
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const emptyRegistrationForm: ClassRegistrationForm = {
   childName: "",
@@ -45,6 +47,9 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
   const [childDob, setChildDob] = useState("");
   const [searched, setSearched] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [apiChildResults, setApiChildResults] = useState<ChildSearchResult[] | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceHistoryItem[]>([]);
   const managementHref = !hasUser
@@ -119,9 +124,15 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
 
   async function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!turnstileToken) {
+      setSearchError("Vui lòng xác nhận CAPTCHA trước khi tra cứu.");
+      return;
+    }
+
     setSearching(true);
+    setSearchError("");
     try {
-      const results = await guestService.searchChild({ childDob, parentPhone });
+      const results = await guestService.searchChild({ childDob, parentPhone, turnstileToken });
       setApiChildResults(results);
       if (results[0]?.studentId) {
         setAttendanceHistory(await guestService.getAttendanceHistory(results[0].studentId));
@@ -133,8 +144,11 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
       setApiChildResults(null);
       setAttendanceHistory([]);
       setSearched(true);
+      setSearchError("Không thể xác minh CAPTCHA hoặc tra cứu dữ liệu. Vui lòng thử lại.");
     } finally {
       setSearching(false);
+      setTurnstileToken(null);
+      setTurnstileResetKey((key) => key + 1);
     }
   }
 
@@ -444,13 +458,28 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
                     value={childDob}
                   />
                 </label>
+                <TurnstileWidget
+                  onTokenChange={(token) => {
+                    setTurnstileToken(token);
+                    if (token) {
+                      setSearchError("");
+                    }
+                  }}
+                  resetKey={turnstileResetKey}
+                  siteKey={TURNSTILE_SITE_KEY}
+                />
                 <button
                   className="mt-2 h-12 rounded-full bg-[#2d211b] text-base font-extrabold text-white transition hover:-translate-y-1"
-                  disabled={searching}
+                  disabled={searching || !turnstileToken}
                   type="submit"
                 >
                   {searching ? "Đang tra cứu..." : "Tra cứu"}
                 </button>
+                {searchError ? (
+                  <p className="text-sm font-bold text-[#9b3f2c]" role="alert">
+                    {searchError}
+                  </p>
+                ) : null}
               </form>
             </div>
 

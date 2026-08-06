@@ -24,6 +24,10 @@ export type UpdateLessonPayload = {
   repeatStatus: number;
 };
 
+export type ResetDatabaseResponse = {
+  truncatedTables: number;
+};
+
 export const lessonRepeatStatusValues = {
   fixed: 0,
   temporary: 1,
@@ -203,4 +207,6 @@ export const adminService = {
   },
   approveRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/approve`, {}),
   rejectRegistration: (id: number) => api.put<void>(`/api/class-registrations/${id}/reject`, {}),
+  resetDatabase: (confirmation: string) =>
+    api.post<ResetDatabaseResponse>("/api/admin/database/reset", { confirmation }),
 };

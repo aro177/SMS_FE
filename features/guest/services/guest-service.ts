@@ -87,11 +87,7 @@ export const guestService = {
   registerClass: (classId: number, form: ClassRegistrationForm) =>
     api.post<void>("/api/class-registrations", { classId, ...form }),
   searchChild: (form: ChildSearchForm) =>
-    api.get<ChildSearchResult[]>(
-      `/api/students/search?parentPhone=${encodeURIComponent(form.parentPhone)}&childDob=${encodeURIComponent(
-        form.childDob,
-      )}`,
-    ),
+    api.post<ChildSearchResult[]>("/api/students/search", form),
   getAttendanceHistory: (studentId: number) =>
     api.get<AttendanceHistoryItem[]>(`/api/attendances/student/${studentId}`),
 };

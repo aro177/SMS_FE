@@ -25,6 +25,7 @@ export type ClassRegistrationForm = {
 export type ChildSearchForm = {
   parentPhone: string;
   childDob: string;
+  turnstileToken: string;
 };
 
 export type ChildSearchResult = {
