@@ -566,7 +566,7 @@ export function AdminDashboardShell({
         <aside className="flex flex-col rounded-3xl border border-[#ead8ca] bg-white/90 p-4 shadow-[0_20px_60px_rgba(123,82,52,0.10)] xl:sticky xl:top-5 xl:h-[calc(100vh-40px)] xl:min-h-0">
           <div className="flex items-center justify-between gap-3 xl:block">
             <div>
-              <p className="text-2xl font-extrabold tracking-tight text-[#8b5632]">An Nhiên Kids</p>
+              <p className="text-2xl font-extrabold tracking-tight text-[#8b5632]">DreamTeam</p>
               <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">Khu quản lý</p>
             </div>
             <div className="flex items-center gap-2 xl:mt-4 xl:flex-wrap">

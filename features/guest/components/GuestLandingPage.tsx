@@ -160,7 +160,7 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
       <div className="mx-auto flex min-h-[100svh] w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-4 xl:px-8">
         <header className="flex shrink-0 flex-col gap-3 rounded-[2rem] border border-[#ead8ca] bg-white/80 px-4 py-4 shadow-[0_16px_48px_rgba(123,82,52,0.10)] backdrop-blur md:flex-row md:items-center md:justify-between md:px-5">
           <div>
-            <p className="text-[2rem] font-extrabold leading-none tracking-tight text-[#8b5632] md:text-3xl">An Nhiên Kids</p>
+            <p className="text-[2rem] font-extrabold leading-none tracking-tight text-[#8b5632] md:text-3xl">DreamTeam</p>
             <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">
               Cổng phụ huynh
             </p>

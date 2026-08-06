@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "An Nhiên Kids",
+  title: "DreamTeam",
   description: "Cổng đăng ký lớp học và tra cứu thông tin học viên cho phụ huynh.",
 };
 

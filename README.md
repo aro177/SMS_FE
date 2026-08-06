@@ -1,4 +1,4 @@
-# An Nhiên Kids FE
+# DreamTeam FE
 
 Next.js frontend for class registration, parent lookup, and internal management.
 

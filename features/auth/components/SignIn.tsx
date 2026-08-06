@@ -63,7 +63,7 @@ export default function PasswordSignIn({
             <section className="w-full max-w-md rounded-3xl border border-[#ead8ca] bg-white/90 p-6 shadow-[0_24px_70px_rgba(123,82,52,0.16)] backdrop-blur md:p-7">
                 <div className="mb-6 text-center">
                     <p className="text-sm font-extrabold uppercase tracking-[0.2em] text-[#a36c45]">
-                        An Nhiên Kids
+                        DreamTeam
                     </p>
                     <h1 className="mt-3 text-3xl font-extrabold tracking-tight">
                         Đăng nhập hệ thống
