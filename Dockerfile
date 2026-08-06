@@ -31,7 +31,6 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
-    TZ=Asia/Ho_Chi_Minh \
     PORT=3000
 
 RUN addgroup --system --gid 1001 nextjs \
