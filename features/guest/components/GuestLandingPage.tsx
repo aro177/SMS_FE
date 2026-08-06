@@ -173,16 +173,16 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
     <main className="min-h-[100svh] overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#fff8ef_0,#fbefe5_36%,#f6e7dc_100%)] text-[#2d211b]">
       <div className="mx-auto flex min-h-[100svh] w-full max-w-[1680px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-4 xl:px-8">
         <header className="flex shrink-0 flex-col gap-3 rounded-[2rem] border border-[#ead8ca] bg-white/80 px-4 py-4 shadow-[0_16px_48px_rgba(123,82,52,0.10)] backdrop-blur md:flex-row md:items-center md:justify-between md:px-5">
-          <div>
+          <div className="min-w-0 shrink-0">
             <p className="text-[2rem] font-extrabold leading-none tracking-tight text-[#8b5632] md:text-3xl">DreamTeam</p>
             <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.18em] text-[#a36c45]">
               Cổng phụ huynh
             </p>
           </div>
 
-          <div className="flex w-full rounded-full border border-[#d9bda8] bg-[#fffaf5] p-1 text-base font-bold shadow-inner md:w-auto">
+          <div className="order-3 flex w-full min-w-0 rounded-full border border-[#d9bda8] bg-[#fffaf5] p-1 text-sm font-bold shadow-inner sm:text-base md:order-none md:w-auto">
             <button
-              className={`h-11 flex-1 rounded-full px-5 transition md:flex-none ${
+              className={`h-11 min-w-0 flex-1 rounded-full px-3 transition sm:px-5 md:flex-none ${
                 activeTab === "classes"
                   ? "bg-[#a36c45] text-white shadow-[0_10px_22px_rgba(163,108,69,0.22)]"
                   : "text-[#6f4b34] hover:bg-[#f8eadf]"
@@ -193,7 +193,7 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
               Lớp học
             </button>
             <button
-              className={`h-11 flex-1 rounded-full px-5 transition md:flex-none ${
+              className={`h-11 min-w-0 flex-1 rounded-full px-3 transition sm:px-5 md:flex-none ${
                 activeTab === "search"
                   ? "bg-[#a36c45] text-white shadow-[0_10px_22px_rgba(163,108,69,0.22)]"
                   : "text-[#6f4b34] hover:bg-[#f8eadf]"
@@ -205,14 +205,21 @@ export function GuestLandingPage({ classes, hasUser, searchResultSettings, userR
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div
+            className={`order-2 grid w-full min-w-0 gap-2 ${hasUser ? "grid-cols-2" : "grid-cols-1"} md:order-none md:flex md:w-auto md:shrink-0`}
+          >
             <a
-                className="hidden rounded-full border border-[#d9bda8] px-4 py-2 text-sm font-bold text-[#6f4b34] transition hover:bg-[#fff5ed] md:inline-flex"
-                href={managementHref}
+              className="inline-flex min-h-11 min-w-0 items-center justify-center rounded-full border border-[#d9bda8] bg-white px-3 text-center text-sm font-bold leading-tight text-[#6f4b34] transition hover:bg-[#fff5ed] md:h-10 md:min-h-0 md:px-4"
+              href={managementHref}
             >
               {hasUser ? "Quản lý" : "Đăng nhập"}
             </a>
-            {hasUser ? <LogoutButton redirectTo="/guest" /> : null}
+            {hasUser ? (
+              <LogoutButton
+                className="inline-flex min-h-11 min-w-0 items-center justify-center rounded-full border border-[#d9bda8] bg-white px-3 text-center text-xs font-extrabold leading-tight text-[#6f4b34] transition hover:bg-[#fff5ed] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm md:h-10 md:min-h-0 md:px-4"
+                redirectTo="/guest"
+              />
+            ) : null}
           </div>
 
         </header>
