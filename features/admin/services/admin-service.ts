@@ -13,6 +13,7 @@ export type CreateLessonPayload = {
   title?: string | null;
   startTime: string;
   endTime: string;
+  repeatStatus: number;
 };
 
 export type UpdateLessonPayload = {
@@ -20,7 +21,13 @@ export type UpdateLessonPayload = {
   title: string;
   startTime: string;
   endTime: string;
+  repeatStatus: number;
 };
+
+export const lessonRepeatStatusValues = {
+  fixed: 0,
+  temporary: 1,
+} as const;
 
 type RegistrationApiItem = {
   id: number;
@@ -66,6 +73,7 @@ let mockLessons: Lesson[] = scheduleEvents.map((event, index) => {
     endTime: endTime.toISOString(),
     id: event.id,
     startTime: startTime.toISOString(),
+    repeatStatus: lessonRepeatStatusValues[event.repeatType],
     teacherId: teacher?.id ?? null,
     teacherName: event.teacher,
     title: event.className,
@@ -137,6 +145,7 @@ export const adminService = {
       endTime: payload.endTime,
       id: Date.now(),
       startTime: payload.startTime,
+      repeatStatus: payload.repeatStatus,
       teacherId: teacher?.id ?? null,
       teacherName: teacher?.fullname ?? "Chưa phân công",
       title: payload.title ?? findClassName(payload.classroomId),
@@ -155,6 +164,7 @@ export const adminService = {
             classroomName: findClassName(payload.classroomId),
             endTime: payload.endTime,
             startTime: payload.startTime,
+            repeatStatus: payload.repeatStatus,
             teacherId: teacher?.id ?? null,
             teacherName: teacher?.fullname ?? lesson.teacherName,
             title: payload.title,

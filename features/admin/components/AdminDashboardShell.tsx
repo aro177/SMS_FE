@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { adminService } from "@/features/admin/services/admin-service";
+import { adminService, lessonRepeatStatusValues } from "@/features/admin/services/admin-service";
 import type { RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
 import { ClassesTable } from "@/features/classes/components/ClassesTable";
 import { classesService } from "@/features/classes/services/classes-service";
@@ -283,8 +283,9 @@ export function AdminDashboardShell({
         const saved = await adminService.createLesson({
           classroomId: selectedClass.id,
           title: scheduleForm.className,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
+          startTime: formatLessonDateTimeForApi(startTime),
+          endTime: formatLessonDateTimeForApi(endTime),
+          repeatStatus: lessonRepeatStatusValues[scheduleForm.repeatType],
         });
         nextEvent.id = saved.id;
         nextEvent.code = saved.code;
@@ -293,8 +294,9 @@ export function AdminDashboardShell({
         await adminService.updateLesson(editingScheduleId, {
           classroomId: selectedClass.id,
           title: scheduleForm.className,
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
+          startTime: formatLessonDateTimeForApi(startTime),
+          endTime: formatLessonDateTimeForApi(endTime),
+          repeatStatus: lessonRepeatStatusValues[scheduleForm.repeatType],
         });
       }
 
@@ -949,6 +951,13 @@ function formatLocalDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatLessonDateTimeForApi(date: Date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${formatLocalDateKey(date)}T${hours}:${minutes}:${seconds}`;
 }
 
 function parseLocalDateKey(dateKey: string) {

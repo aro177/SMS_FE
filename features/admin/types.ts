@@ -43,4 +43,5 @@ export type Lesson = {
   endTime: string;
   code: string;
   takeAttendanceStatus: boolean;
+  repeatStatus?: number | string | null;
 };

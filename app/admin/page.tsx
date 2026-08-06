@@ -126,13 +126,21 @@ function mapLessonToScheduleEvent(lesson: Lesson, index: number): ScheduleEvent 
     dayIndex,
     durationHours,
     occurrenceDate: formatLocalDateKey(start),
-    repeatType: "temporary",
+    repeatType: mapLessonRepeatStatus(lesson.repeatStatus),
     room: "Phòng học",
     startHour: start.getHours(),
     status: "confirmed",
     takeAttendanceStatus: lesson.takeAttendanceStatus,
     teacher: lesson.teacherName ?? "Chưa phân công",
   };
+}
+
+function mapLessonRepeatStatus(repeatStatus: Lesson["repeatStatus"]): ScheduleEvent["repeatType"] {
+  if (typeof repeatStatus === "number") {
+    return repeatStatus === 0 ? "fixed" : "temporary";
+  }
+
+  return repeatStatus?.toLowerCase() === "fixed" ? "fixed" : "temporary";
 }
 
 function formatLocalDateKey(date: Date) {
