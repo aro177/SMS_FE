@@ -1,7 +1,14 @@
 // import { registrationRequests, scheduleEvents } from "@/features/admin/data/admin-data";
 // import { publicClasses } from "@/features/guest/data/guest-data";
-import { api, type PagedResult } from "@/shared/services/api";
-import type { Lesson, RegistrationRequest, Teacher } from "../types";
+import { api, apiRequest, type PagedResult } from "@/shared/services/api";
+import type {
+  BulkTakeAttendanceStatusResponse,
+  Lesson,
+  LessonAttendanceDetail,
+  RegistrationRequest,
+  TakeAttendanceStatusResponse,
+  Teacher,
+} from "../types";
 
 export type CreateTeacherPayload = {
   fullname: string;
@@ -201,6 +208,24 @@ export const adminService = {
   getLessons: () => api.get<PagedResult<Lesson>>("/api/lessons?page=1&pageSize=100"),
   createLesson: (payload: CreateLessonPayload) => api.post<Lesson>("/api/lessons", payload),
   updateLesson: (id: number, payload: UpdateLessonPayload) => api.put<void>(`/api/lessons/${id}`, payload),
+  getTodayLessons: () => api.get<Lesson[]>("/api/lessons/today"),
+  getLessonsByDate: (date: string) =>
+    api.get<Lesson[]>(`/api/lessons/by-date?date=${encodeURIComponent(date)}`),
+  getLessonAttendances: (lessonId: number) =>
+    api.get<LessonAttendanceDetail[]>(`/api/lessons/${lessonId}/attendances`),
+  toggleLessonAttendanceStatus: (lessonId: number) =>
+    apiRequest<TakeAttendanceStatusResponse>(`/api/lessons/${lessonId}/take-attendance-status`, {
+      method: "PATCH",
+    }),
+  toggleTodayAttendanceStatus: () =>
+    apiRequest<BulkTakeAttendanceStatusResponse>("/api/lessons/today/take-attendance-status", {
+      method: "PATCH",
+    }),
+  toggleAttendanceStatusByDate: (date: string) =>
+    apiRequest<BulkTakeAttendanceStatusResponse>(
+      `/api/lessons/by-date/take-attendance-status?date=${encodeURIComponent(date)}`,
+      { method: "PATCH" },
+    ),
   getRegistrations: async () => {
     const result = await api.get<PagedResult<RegistrationApiItem>>("/api/class-registrations?page=1&pageSize=100");
     return result.items.map(mapRegistration);

@@ -15,6 +15,7 @@ export type TeacherLesson = {
   title: string;
   startTime: string;
   endTime: string;
+  takeAttendanceStatus: boolean;
 };
 
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";

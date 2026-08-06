@@ -15,8 +15,9 @@ import type { RecentStudent } from "@/features/students/types";
 import { updateSearchResultSettings } from "@/features/settings/services/search-result-settings-service";
 import type { SearchResultSettings } from "@/features/settings/types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
+import { TodayLessonsPanel } from "./TodayLessonsPanel";
 
-type AdminTab = "overview" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "settings";
+type AdminTab = "overview" | "today-lessons" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "settings";
 type FilterValue = "all" | string;
 type ScheduleView = "day" | "week" | "month";
 
@@ -74,6 +75,7 @@ type RegistrationFormState = {
 
 const adminTabs: { id: AdminTab; label: string; helper: string; icon: "grid" | "calendar" | "book" | "users" | "clipboard" | "teacher" | "settings" }[] = [
   { id: "overview", label: "Tổng quan", helper: "Theo dõi nhanh tình hình trung tâm", icon: "grid" },
+  { id: "today-lessons", label: "Quản lý tiết học", helper: "Tìm theo ngày, giờ và khóa điểm danh", icon: "calendar" },
   { id: "schedule", label: "Sắp xếp lịch học", helper: "Xếp giờ học theo tuần", icon: "calendar" },
   { id: "classes", label: "Quản lý lớp học", helper: "Lịch, học phí và sĩ số", icon: "book" },
   { id: "students", label: "Quản lý học viên", helper: "Thông tin con và phụ huynh", icon: "users" },
@@ -624,6 +626,8 @@ export function AdminDashboardShell({
                 teachers={teacherItems}
               />
             ) : null}
+
+            {activeTab === "today-lessons" ? <TodayLessonsPanel /> : null}
 
             {activeTab === "schedule" ? (
               <SchedulePanel

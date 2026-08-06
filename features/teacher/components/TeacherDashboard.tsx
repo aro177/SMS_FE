@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { teacherService } from "../services/teacher-service";
 import type { AttendanceStatus, AttendanceStudent, TeacherLesson, TeacherOption } from "../types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
+import { ApiError } from "@/shared/services/api";
 
 const attendanceOptions: { label: string; value: AttendanceStatus }[] = [
   { label: "Có mặt", value: "PRESENT" },
@@ -42,7 +43,11 @@ export function TeacherDashboard() {
     try {
       const students = await teacherService.getLessonRoster(lesson.id);
       setRoster(students.map((student) => ({ ...student, status: student.status ?? "PRESENT" })));
-      setNotice(`Đang điểm danh tiết ${lesson.title || lesson.classroomName}.`);
+      setNotice(
+        lesson.takeAttendanceStatus
+          ? `Điểm danh tiết ${lesson.title || lesson.classroomName} đã bị khóa.`
+          : `Đang điểm danh tiết ${lesson.title || lesson.classroomName}.`,
+      );
     } catch {
       setRoster([]);
       setNotice("Chưa tải được danh sách học viên cho tiết này.");
@@ -52,6 +57,11 @@ export function TeacherDashboard() {
   }, []);
 
   function openNote(student: AttendanceStudent) {
+    if (selectedLesson?.takeAttendanceStatus) {
+      setNotice("Điểm danh của tiết học này đã bị khóa.");
+      return;
+    }
+
     setNoteStudentId(student.studentId);
     setNoteDraft(student.note ?? "");
   }
@@ -108,6 +118,11 @@ export function TeacherDashboard() {
       return;
     }
 
+    if (selectedLesson.takeAttendanceStatus) {
+      setNotice("Điểm danh của tiết học này đã bị khóa và không thể cập nhật.");
+      return;
+    }
+
     try {
       await teacherService.markLesson(
         selectedLesson.id,
@@ -118,8 +133,19 @@ export function TeacherDashboard() {
         })),
       );
       setNotice("Đã lưu điểm danh cho tiết học.");
-    } catch {
-      setNotice("Chưa lưu được điểm danh lên backend.");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setLessons((items) =>
+          items.map((lesson) =>
+            lesson.id === selectedLesson.id
+              ? { ...lesson, takeAttendanceStatus: true }
+              : lesson,
+          ),
+        );
+        setNotice("Admin vừa khóa điểm danh của tiết học này. Dữ liệu không được cập nhật.");
+      } else {
+        setNotice("Chưa lưu được điểm danh lên backend.");
+      }
     }
   }
 
@@ -186,6 +212,11 @@ export function TeacherDashboard() {
                       {formatTime(lesson.startTime)} - {formatTime(lesson.endTime)}
                     </p>
                     <p className="mt-1 text-sm text-[#725e51]">{lesson.classroomName}</p>
+                    {lesson.takeAttendanceStatus ? (
+                      <span className="mt-3 inline-flex rounded-full bg-[#fce3dd] px-3 py-1 text-xs font-extrabold text-[#9b3f2c]">
+                        Đã khóa điểm danh
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -209,6 +240,11 @@ export function TeacherDashboard() {
                   {formatTime(selectedLesson.startTime)} - {formatTime(selectedLesson.endTime)}
                 </p>
               ) : null}
+              {selectedLesson?.takeAttendanceStatus ? (
+                <p className="mt-3 rounded-2xl bg-[#fce3dd] px-4 py-2 text-sm font-extrabold text-[#9b3f2c]">
+                  Admin đã khóa điểm danh. Bạn chỉ có thể xem, không thể chỉnh sửa hoặc lưu lại.
+                </p>
+              ) : null}
             </div>
 
             <div className="max-h-[calc(100dvh-292px)] overflow-y-auto md:max-h-[calc(100dvh-305px)]">
@@ -230,6 +266,7 @@ export function TeacherDashboard() {
                           <input
                             checked={(student.status ?? "PRESENT") === option.value}
                             className="peer sr-only"
+                            disabled={selectedLesson?.takeAttendanceStatus}
                             name={`attendance-${student.studentId}`}
                             onChange={() =>
                               setRoster((items) =>
@@ -252,6 +289,7 @@ export function TeacherDashboard() {
                           ? "border-[#a36c45] bg-[#fff1e5] text-[#8b5632]"
                           : "border-[#d9bda8] bg-white text-[#6f4b34] hover:bg-[#fffaf5]"
                       }`}
+                      disabled={selectedLesson?.takeAttendanceStatus}
                       onClick={() => openNote(student)}
                       type="button"
                     >
@@ -289,6 +327,7 @@ export function TeacherDashboard() {
                               <input
                                 checked={(student.status ?? "PRESENT") === option.value}
                                 className="peer sr-only"
+                                disabled={selectedLesson?.takeAttendanceStatus}
                                 name={`attendance-table-${student.studentId}`}
                                 onChange={() =>
                                   setRoster((items) =>
@@ -312,6 +351,7 @@ export function TeacherDashboard() {
                                 ? "border-[#a36c45] bg-[#fff1e5] text-[#8b5632]"
                                 : "border-[#d9bda8] bg-white text-[#6f4b34] hover:bg-[#fffaf5]"
                             }`}
+                            disabled={selectedLesson?.takeAttendanceStatus}
                             onClick={() => openNote(student)}
                             type="button"
                           >
@@ -339,10 +379,10 @@ export function TeacherDashboard() {
             <div className="border-t border-[#ead8ca] bg-white px-4 py-3 md:px-5 md:py-4">
               <button
                 className="h-12 w-full rounded-full bg-[#2d211b] text-base font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!selectedLesson || roster.length === 0}
+                disabled={!selectedLesson || roster.length === 0 || selectedLesson.takeAttendanceStatus}
                 type="submit"
               >
-                Lưu điểm danh
+                {selectedLesson?.takeAttendanceStatus ? "Điểm danh đã bị khóa" : "Lưu điểm danh"}
               </button>
             </div>
           </form>

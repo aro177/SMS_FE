@@ -45,3 +45,25 @@ export type Lesson = {
   takeAttendanceStatus: boolean;
   repeatStatus?: number | string | null;
 };
+
+export type LessonAttendanceDetail = {
+  id: number;
+  lessonId: number;
+  studentId: number;
+  studentName: string;
+  status: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TakeAttendanceStatusResponse = {
+  lessonId: number;
+  takeAttendanceStatus: boolean;
+};
+
+export type BulkTakeAttendanceStatusResponse = {
+  date: string;
+  takeAttendanceStatus: boolean;
+  updatedLessons: number;
+};
