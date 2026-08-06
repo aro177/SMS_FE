@@ -37,7 +37,7 @@ type AdminDashboardShellProps = {
 
 type ScheduleFormState = {
   className: string;
-  dayIndex: number;
+  occurrenceDate: string;
   startHour: number;
   durationHours: number;
   repeatType: ScheduleEvent["repeatType"];
@@ -130,7 +130,7 @@ export function AdminDashboardShell({
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(() =>
-    createScheduleFormState(classes[0]?.name ?? ""),
+    createScheduleFormState(classes[0]?.name ?? "", formatLocalDateKey(scheduleDate)),
   );
   const [classFormOpen, setClassFormOpen] = useState(false);
   const [editingClassId, setEditingClassId] = useState<number | null>(null);
@@ -218,7 +218,7 @@ export function AdminDashboardShell({
   function openCreateScheduleForm() {
     const firstClass = classItems[0];
     setEditingScheduleId(null);
-    setScheduleForm(createScheduleFormState(firstClass?.name ?? ""));
+    setScheduleForm(createScheduleFormState(firstClass?.name ?? "", formatLocalDateKey(scheduleDate)));
     setScheduleFormOpen(true);
   }
 
@@ -226,8 +226,8 @@ export function AdminDashboardShell({
     setEditingScheduleId(event.id);
     setScheduleForm({
       className: event.className,
-      dayIndex: event.dayIndex,
       durationHours: event.durationHours,
+      occurrenceDate: event.occurrenceDate,
       repeatType: event.repeatType,
       room: event.room,
       startHour: event.startHour,
@@ -251,7 +251,12 @@ export function AdminDashboardShell({
       return;
     }
 
-    const startTime = buildLessonDate(scheduleDate, scheduleForm.dayIndex, scheduleForm.startHour);
+    const startTime = buildLessonDate(scheduleForm.occurrenceDate, scheduleForm.startHour);
+    if (!startTime) {
+      setNotice("Ngày học không hợp lệ. Vui lòng chọn lại ngày, tháng và năm.");
+      return;
+    }
+
     const endTime = new Date(startTime.getTime() + durationHours * 3_600_000);
     const nextEvent: ScheduleEvent = {
       id: editingScheduleId ?? Date.now(),
@@ -260,9 +265,9 @@ export function AdminDashboardShell({
       code: scheduleItems.find((item) => item.id === editingScheduleId)?.code ?? "",
       teacher: selectedClass?.teacher ?? "Chưa chọn",
       room: scheduleForm.room,
-      dayIndex: Number(scheduleForm.dayIndex),
+      dayIndex: getScheduleDayIndex(startTime),
       durationHours,
-      occurrenceDate: formatLocalDateKey(startTime),
+      occurrenceDate: scheduleForm.occurrenceDate,
       startHour: Number(scheduleForm.startHour),
       repeatType: scheduleForm.repeatType,
       status: scheduleForm.status,
@@ -296,6 +301,7 @@ export function AdminDashboardShell({
       setScheduleItems((items) =>
         editingScheduleId === null ? [...items, nextEvent] : items.map((item) => (item.id === editingScheduleId ? nextEvent : item)),
       );
+      setScheduleDate(startOfDay(startTime));
       setScheduleFormOpen(false);
       setNotice(editingScheduleId === null ? "Đã thêm lớp vào lịch thật." : "Đã cập nhật lịch học thật.");
     } catch {
@@ -779,11 +785,11 @@ export function AdminDashboardShell({
   );
 }
 
-function createScheduleFormState(className: string): ScheduleFormState {
+function createScheduleFormState(className: string, occurrenceDate: string): ScheduleFormState {
   return {
     className,
-    dayIndex: 0,
     durationHours: 2,
+    occurrenceDate,
     repeatType: "fixed",
     room: defaultRoom,
     startHour: 8,
@@ -884,9 +890,12 @@ function getScheduleDayIndex(date: Date) {
   return date.getDay() === 0 ? 6 : date.getDay() - 1;
 }
 
-function buildLessonDate(referenceDate: Date, dayIndex: number, startHour: number) {
-  const lessonDate = startOfWeek(referenceDate);
-  lessonDate.setDate(lessonDate.getDate() + dayIndex);
+function buildLessonDate(dateKey: string, startHour: number) {
+  const lessonDate = parseLocalDateKey(dateKey);
+  if (!lessonDate) {
+    return null;
+  }
+
   lessonDate.setHours(startHour, 0, 0, 0);
   return lessonDate;
 }
@@ -942,9 +951,26 @@ function formatLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function parseLocalDateKey(dateKey: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) {
+    return null;
+  }
+
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return formatLocalDateKey(date) === dateKey ? date : null;
+}
+
+function formatSelectedLessonDate(dateKey: string) {
+  const date = parseLocalDateKey(dateKey);
+  return date
+    ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "full" }).format(date)
+    : "Chưa chọn ngày học";
+}
+
 function doesEventOccurOnDate(event: ScheduleEvent, date: Date) {
   if (event.repeatType === "fixed") {
-    return event.dayIndex === getScheduleDayIndex(date);
+    return formatLocalDateKey(date) >= event.occurrenceDate && event.dayIndex === getScheduleDayIndex(date);
   }
 
   return event.occurrenceDate === formatLocalDateKey(date);
@@ -1583,8 +1609,8 @@ function ScheduleFormModal({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-[#2d211b]/35 px-4 py-6">
-      <form className="w-full max-w-2xl rounded-3xl border border-[#ead8ca] bg-white p-5 shadow-2xl" onSubmit={onSubmit}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#2d211b]/35 px-3 py-4 md:px-4 md:py-6">
+      <form className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-[#ead8ca] bg-white p-5 shadow-2xl" onSubmit={onSubmit}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#a36c45]">
@@ -1615,17 +1641,17 @@ function ScheduleFormModal({
 
           <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
             Ngày học
-            <select
+            <input
               className="h-11 rounded-2xl border border-[#e3d6ca] bg-white px-4 text-sm font-semibold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
-              onChange={(event) => onChange({ ...form, dayIndex: Number(event.target.value) })}
-              value={form.dayIndex}
-            >
-              {dayLabels.map((day, index) => (
-                <option key={day} value={index}>
-                  {day}
-                </option>
-              ))}
-            </select>
+              onChange={(event) => onChange({ ...form, occurrenceDate: event.target.value })}
+              onClick={(event) => event.currentTarget.showPicker?.()}
+              required
+              type="date"
+              value={form.occurrenceDate}
+            />
+            <span className="text-xs font-semibold capitalize text-[#8b6a58]">
+              {formatSelectedLessonDate(form.occurrenceDate)}
+            </span>
           </label>
 
           <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
