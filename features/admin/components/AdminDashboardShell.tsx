@@ -957,7 +957,7 @@ function formatLessonDateTimeForApi(date: Date) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
   const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${formatLocalDateKey(date)}T${hours}:${minutes}:${seconds}+07:00`;
+  return `${formatLocalDateKey(date)}T${hours}:${minutes}:${seconds}`;
 }
 
 function parseLocalDateKey(dateKey: string) {
