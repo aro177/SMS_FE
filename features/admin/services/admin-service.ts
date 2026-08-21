@@ -21,6 +21,18 @@ export type CreateLessonPayload = {
   startTime: string;
   endTime: string;
   repeatStatus: number;
+  recurrence?: {
+    intervalWeeks: number;
+    weekdays: number[];
+    endType: number;
+    endDate?: string | null;
+    occurrenceCount?: number | null;
+  } | null;
+};
+
+export type CreateLessonsResponse = {
+  lessons: Lesson[];
+  createdCount: number;
 };
 
 export type UpdateLessonPayload = {
@@ -205,8 +217,28 @@ export const adminService = {
   createTeacher: (payload: CreateTeacherPayload) => api.post<Teacher>("/api/teachers", payload),
   updateTeacher: (id: number, payload: CreateTeacherPayload) => api.put<void>(`/api/teachers/${id}`, payload),
   deleteTeacher: (id: number) => api.delete<void>(`/api/teachers/${id}`),
-  getLessons: () => api.get<PagedResult<Lesson>>("/api/lessons?page=1&pageSize=100"),
-  createLesson: (payload: CreateLessonPayload) => api.post<Lesson>("/api/lessons", payload),
+  getLessons: async () => {
+    const firstPage = await api.get<PagedResult<Lesson>>("/api/lessons?page=1&pageSize=500");
+    if (firstPage.totalPages <= 1) {
+      return firstPage;
+    }
+
+    const remainingPages = await Promise.all(
+      Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
+        api.get<PagedResult<Lesson>>(`/api/lessons?page=${index + 2}&pageSize=500`),
+      ),
+    );
+    const items = [firstPage, ...remainingPages].flatMap((page) => page.items);
+
+    return {
+      ...firstPage,
+      items,
+      page: 1,
+      pageSize: items.length,
+      totalPages: 1,
+    };
+  },
+  createLesson: (payload: CreateLessonPayload) => api.post<CreateLessonsResponse>("/api/lessons", payload),
   updateLesson: (id: number, payload: UpdateLessonPayload) => api.put<void>(`/api/lessons/${id}`, payload),
   getTodayLessons: () => api.get<Lesson[]>("/api/lessons/today"),
   getLessonsByDate: (date: string) =>
