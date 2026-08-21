@@ -127,6 +127,7 @@ function mapLessonToScheduleEvent(lesson: Lesson, index: number): ScheduleEvent 
     durationHours,
     occurrenceDate: formatLocalDateKey(start),
     repeatType: mapLessonRepeatStatus(lesson.repeatStatus),
+    seriesId: lesson.seriesId,
     room: "Phòng học",
     startHour: start.getHours(),
     status: "confirmed",

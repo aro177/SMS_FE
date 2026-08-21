@@ -22,7 +22,7 @@ export type CreateLessonPayload = {
   endTime: string;
   repeatStatus: number;
   recurrence?: {
-    intervalWeeks: number;
+    repeatWeeks: number;
     weekdays: number[];
     endType: number;
     endDate?: string | null;
@@ -33,6 +33,19 @@ export type CreateLessonPayload = {
 export type CreateLessonsResponse = {
   lessons: Lesson[];
   createdCount: number;
+};
+
+export type LessonDeleteScope = "thisEvent" | "thisAndFollowing" | "entireSeries";
+
+export type DeleteLessonsResponse = {
+  deletedLessonIds: number[];
+  deletedCount: number;
+};
+
+const lessonDeleteScopeValues: Record<LessonDeleteScope, number> = {
+  thisEvent: 0,
+  thisAndFollowing: 1,
+  entireSeries: 2,
 };
 
 export type UpdateLessonPayload = {
@@ -240,6 +253,10 @@ export const adminService = {
   },
   createLesson: (payload: CreateLessonPayload) => api.post<CreateLessonsResponse>("/api/lessons", payload),
   updateLesson: (id: number, payload: UpdateLessonPayload) => api.put<void>(`/api/lessons/${id}`, payload),
+  deleteLesson: (id: number, scope: LessonDeleteScope) =>
+    api.delete<DeleteLessonsResponse>(
+      `/api/lessons/${id}?scope=${lessonDeleteScopeValues[scope]}`,
+    ),
   getTodayLessons: () => api.get<Lesson[]>("/api/lessons/today"),
   getLessonsByDate: (date: string) =>
     api.get<Lesson[]>(`/api/lessons/by-date?date=${encodeURIComponent(date)}`),

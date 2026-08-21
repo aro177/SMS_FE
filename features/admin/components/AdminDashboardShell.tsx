@@ -2,7 +2,11 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { adminService, lessonRepeatStatusValues } from "@/features/admin/services/admin-service";
+import {
+  adminService,
+  lessonRepeatStatusValues,
+  type LessonDeleteScope,
+} from "@/features/admin/services/admin-service";
 import type { Lesson, RegistrationRequest, ScheduleEvent, Teacher } from "@/features/admin/types";
 import { ClassesTable } from "@/features/classes/components/ClassesTable";
 import { classesService } from "@/features/classes/services/classes-service";
@@ -16,6 +20,7 @@ import { updateSearchResultSettings } from "@/features/settings/services/search-
 import type { SearchResultSettings } from "@/features/settings/types";
 import { LogoutButton } from "@/features/auth/components/LogoutButton";
 import { TodayLessonsPanel } from "./TodayLessonsPanel";
+import { ApiError } from "@/shared/services/api";
 
 type AdminTab = "overview" | "today-lessons" | "schedule" | "classes" | "students" | "registrations" | "teachers" | "settings";
 type FilterValue = "all" | string;
@@ -42,9 +47,9 @@ type ScheduleFormState = {
   startHour: number;
   durationHours: number;
   repeatType: ScheduleEvent["repeatType"];
-  repeatIntervalWeeks: number;
+  repeatWeeks: number;
   repeatWeekdays: number[];
-  repeatEndType: "never" | "onDate" | "afterOccurrences";
+  repeatEndType: "afterWeeks" | "onDate" | "afterOccurrences";
   repeatEndDate: string;
   repeatOccurrenceCount: number;
   room: string;
@@ -53,7 +58,7 @@ type ScheduleFormState = {
 
 type CustomRecurrenceState = Pick<
   ScheduleFormState,
-  | "repeatIntervalWeeks"
+  | "repeatWeeks"
   | "repeatWeekdays"
   | "repeatEndType"
   | "repeatEndDate"
@@ -119,7 +124,7 @@ const repeatTypeLabels: Record<ScheduleEvent["repeatType"], string> = {
 };
 
 const recurrenceEndTypeValues: Record<ScheduleFormState["repeatEndType"], number> = {
-  never: 0,
+  afterWeeks: 0,
   onDate: 1,
   afterOccurrences: 2,
 };
@@ -154,6 +159,9 @@ export function AdminDashboardShell({
   const [scheduleItems, setScheduleItems] = useState<ScheduleEvent[]>(scheduleEvents);
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(null);
   const [scheduleFormOpen, setScheduleFormOpen] = useState(false);
+  const [scheduleDeleteTarget, setScheduleDeleteTarget] = useState<ScheduleEvent | null>(null);
+  const [scheduleDeleteError, setScheduleDeleteError] = useState("");
+  const [scheduleDeleting, setScheduleDeleting] = useState(false);
   const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>(() =>
     createScheduleFormState(classes[0]?.name ?? "", formatLocalDateKey(scheduleDate)),
   );
@@ -254,7 +262,7 @@ export function AdminDashboardShell({
       durationHours: event.durationHours,
       occurrenceDate: event.occurrenceDate,
       repeatType: event.repeatType,
-      repeatIntervalWeeks: 1,
+      repeatWeeks: 1,
       repeatWeekdays: [parseLocalDateKey(event.occurrenceDate)?.getDay() ?? 1],
       repeatEndType: "afterOccurrences",
       repeatEndDate: event.occurrenceDate,
@@ -264,6 +272,47 @@ export function AdminDashboardShell({
       status: event.status,
     });
     setScheduleFormOpen(true);
+  }
+
+  function openScheduleDelete() {
+    const target = scheduleItems.find((item) => item.id === editingScheduleId);
+    if (!target) {
+      setNotice("Không tìm thấy lịch học cần xóa.");
+      return;
+    }
+
+    setScheduleDeleteError("");
+    setScheduleDeleteTarget(target);
+    setScheduleFormOpen(false);
+  }
+
+  async function handleScheduleDelete(scope: LessonDeleteScope) {
+    if (!scheduleDeleteTarget) {
+      return;
+    }
+
+    setScheduleDeleting(true);
+    setScheduleDeleteError("");
+    try {
+      const result = await adminService.deleteLesson(scheduleDeleteTarget.id, scope);
+      const deletedIds = new Set(result.deletedLessonIds);
+      setScheduleItems((items) => items.filter((item) => !deletedIds.has(item.id)));
+      setScheduleDeleteTarget(null);
+      setEditingScheduleId(null);
+      setNotice(`Đã xóa ${result.deletedCount} lịch học.`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        setScheduleDeleteError(
+          "Không thể xóa vì một hoặc nhiều lịch đã có lịch sử điểm danh.",
+        );
+      } else if (error instanceof ApiError && error.status === 404) {
+        setScheduleDeleteError("Lịch học này không còn tồn tại.");
+      } else {
+        setScheduleDeleteError("Không thể xóa lịch học. Vui lòng thử lại.");
+      }
+    } finally {
+      setScheduleDeleting(false);
+    }
   }
 
   async function handleScheduleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -289,8 +338,8 @@ export function AdminDashboardShell({
 
     const endTime = new Date(startTime.getTime() + durationHours * 3_600_000);
     if (editingScheduleId === null && scheduleForm.repeatType === "fixed") {
-      if (scheduleForm.repeatIntervalWeeks < 1 || scheduleForm.repeatIntervalWeeks > 20) {
-        setNotice("Khoảng lặp phải nằm trong khoảng từ 1 đến 20 tuần.");
+      if (scheduleForm.repeatWeeks < 1 || scheduleForm.repeatWeeks > 20) {
+        setNotice("Số tuần lặp lại phải nằm trong khoảng từ 1 đến 20 tuần.");
         return;
       }
 
@@ -299,16 +348,26 @@ export function AdminDashboardShell({
         return;
       }
 
-      if (scheduleForm.repeatEndType === "onDate" && scheduleForm.repeatEndDate < scheduleForm.occurrenceDate) {
-        setNotice("Ngày kết thúc lặp lại không được trước ngày học đầu tiên.");
-        return;
+      if (scheduleForm.repeatEndType === "onDate") {
+        const repeatWindowEnd = addDaysToDateKey(
+          scheduleForm.occurrenceDate,
+          scheduleForm.repeatWeeks * 7 - 1,
+        );
+        if (
+          scheduleForm.repeatEndDate < scheduleForm.occurrenceDate ||
+          scheduleForm.repeatEndDate > repeatWindowEnd
+        ) {
+          setNotice("Ngày kết thúc phải nằm trong khoảng số tuần lặp lại đã chọn.");
+          return;
+        }
       }
 
       if (
         scheduleForm.repeatEndType === "afterOccurrences" &&
-        (scheduleForm.repeatOccurrenceCount < 1 || scheduleForm.repeatOccurrenceCount > 500)
+        (scheduleForm.repeatOccurrenceCount < 1 ||
+          scheduleForm.repeatOccurrenceCount > scheduleForm.repeatWeeks * scheduleForm.repeatWeekdays.length)
       ) {
-        setNotice("Số lần xuất hiện phải nằm trong khoảng từ 1 đến 500.");
+        setNotice("Số lần xuất hiện vượt quá số buổi có thể tạo trong khoảng tuần đã chọn.");
         return;
       }
     }
@@ -325,6 +384,7 @@ export function AdminDashboardShell({
       occurrenceDate: scheduleForm.occurrenceDate,
       startHour: Number(scheduleForm.startHour),
       repeatType: scheduleForm.repeatType,
+      seriesId: scheduleItems.find((item) => item.id === editingScheduleId)?.seriesId,
       status: scheduleForm.status,
       takeAttendanceStatus:
         scheduleItems.find((item) => item.id === editingScheduleId)?.takeAttendanceStatus ?? false,
@@ -343,7 +403,7 @@ export function AdminDashboardShell({
           repeatStatus: lessonRepeatStatusValues[scheduleForm.repeatType],
           recurrence: scheduleForm.repeatType === "fixed"
             ? {
-                intervalWeeks: scheduleForm.repeatIntervalWeeks,
+                repeatWeeks: scheduleForm.repeatWeeks,
                 weekdays: scheduleForm.repeatWeekdays,
                 endType: recurrenceEndTypeValues[scheduleForm.repeatEndType],
                 endDate: scheduleForm.repeatEndType === "onDate" ? scheduleForm.repeatEndDate : null,
@@ -809,7 +869,22 @@ export function AdminDashboardShell({
           form={scheduleForm}
           onChange={setScheduleForm}
           onClose={() => setScheduleFormOpen(false)}
+          onDelete={openScheduleDelete}
           onSubmit={handleScheduleSubmit}
+        />
+      ) : null}
+      {scheduleDeleteTarget ? (
+        <ScheduleDeleteModal
+          deleting={scheduleDeleting}
+          error={scheduleDeleteError}
+          event={scheduleDeleteTarget}
+          onClose={() => {
+            if (!scheduleDeleting) {
+              setScheduleDeleteTarget(null);
+              setScheduleDeleteError("");
+            }
+          }}
+          onDelete={handleScheduleDelete}
         />
       ) : null}
       {classFormOpen ? (
@@ -877,11 +952,11 @@ function createScheduleFormState(className: string, occurrenceDate: string): Sch
     durationHours: 2,
     occurrenceDate,
     repeatType: "fixed",
-    repeatIntervalWeeks: 1,
+    repeatWeeks: 1,
     repeatWeekdays: [occurrenceDay],
-    repeatEndType: "never",
-    repeatEndDate: addDaysToDateKey(occurrenceDate, 139),
-    repeatOccurrenceCount: 13,
+    repeatEndType: "afterWeeks",
+    repeatEndDate: addDaysToDateKey(occurrenceDate, 6),
+    repeatOccurrenceCount: 1,
     room: defaultRoom,
     startHour: 8,
     status: "draft",
@@ -1082,13 +1157,13 @@ function formatRecurrenceSummary(form: ScheduleFormState) {
     .sort((left, right) => left - right)
     .map((day) => recurrenceWeekdayLabels[day])
     .join(", ");
-  const ending = form.repeatEndType === "never"
-    ? "trong 20 tuần"
+  const ending = form.repeatEndType === "afterWeeks"
+    ? `trong ${form.repeatWeeks} tuần`
     : form.repeatEndType === "onDate"
       ? `đến ${form.repeatEndDate}`
       : `${form.repeatOccurrenceCount} lần xuất hiện`;
 
-  return `Mỗi ${form.repeatIntervalWeeks} tuần vào ${weekdays || "chưa chọn ngày"} · ${ending}`;
+  return `Hằng tuần vào ${weekdays || "chưa chọn ngày"} · ${ending}`;
 }
 
 function doesEventOccurOnDate(event: ScheduleEvent, date: Date) {
@@ -1116,6 +1191,7 @@ function mapCreatedLessonToScheduleEvent(
     occurrenceDate: formatLocalDateKey(start),
     startHour: start.getHours() + start.getMinutes() / 60,
     repeatType: form.repeatType,
+    seriesId: lesson.seriesId,
     status: form.status,
     takeAttendanceStatus: lesson.takeAttendanceStatus,
     color,
@@ -1745,6 +1821,7 @@ function ScheduleFormModal({
   form,
   onChange,
   onClose,
+  onDelete,
   onSubmit,
 }: {
   classes: ClassroomOverview[];
@@ -1752,6 +1829,7 @@ function ScheduleFormModal({
   form: ScheduleFormState;
   onChange: (form: ScheduleFormState) => void;
   onClose: () => void;
+  onDelete: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const [customRecurrenceOpen, setCustomRecurrenceOpen] = useState(false);
@@ -1806,7 +1884,9 @@ function ScheduleFormModal({
                   occurrenceDate: nextDate,
                   repeatWeekdays: followsStartDate ? [nextDay] : form.repeatWeekdays,
                   repeatEndDate:
-                    form.repeatEndType === "never" ? addDaysToDateKey(nextDate, 139) : form.repeatEndDate,
+                    form.repeatEndType === "afterWeeks"
+                      ? addDaysToDateKey(nextDate, form.repeatWeeks * 7 - 1)
+                      : form.repeatEndDate,
                 });
               }}
               onClick={(event) => event.currentTarget.showPicker?.()}
@@ -1923,13 +2003,24 @@ function ScheduleFormModal({
           ) : null}
         </div>
 
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button className="h-11 rounded-full border border-[#d9bda8] px-5 text-sm font-extrabold text-[#6f4b34]" onClick={onClose} type="button">
-            Hủy
-          </button>
-          <button className="h-11 rounded-full bg-[#a36c45] px-5 text-sm font-extrabold text-white" type="submit">
-            {editing ? "Lưu thay đổi" : "Thêm vào lịch"}
-          </button>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {editing ? (
+            <button
+              className="h-11 rounded-full border border-[#e3a99e] px-5 text-sm font-extrabold text-[#a43d2d] transition hover:bg-[#fff0ed]"
+              onClick={onDelete}
+              type="button"
+            >
+              Xóa lịch
+            </button>
+          ) : <span />}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row">
+            <button className="h-11 rounded-full border border-[#d9bda8] px-5 text-sm font-extrabold text-[#6f4b34]" onClick={onClose} type="button">
+              Hủy
+            </button>
+            <button className="h-11 rounded-full bg-[#a36c45] px-5 text-sm font-extrabold text-white" type="submit">
+              {editing ? "Lưu thay đổi" : "Thêm vào lịch"}
+            </button>
+          </div>
         </div>
       </form>
       {customRecurrenceOpen ? (
@@ -1946,6 +2037,131 @@ function ScheduleFormModal({
   );
 }
 
+function ScheduleDeleteModal({
+  deleting,
+  error,
+  event,
+  onClose,
+  onDelete,
+}: {
+  deleting: boolean;
+  error: string;
+  event: ScheduleEvent;
+  onClose: () => void;
+  onDelete: (scope: LessonDeleteScope) => void;
+}) {
+  const [scope, setScope] = useState<LessonDeleteScope>("thisEvent");
+  const isFixed = event.repeatType === "fixed";
+  const canDeleteSeries = Boolean(event.seriesId);
+
+  const options: Array<{
+    label: string;
+    scope: LessonDeleteScope;
+    disabled?: boolean;
+  }> = isFixed
+    ? [
+        { label: "Sự kiện này", scope: "thisEvent" },
+        {
+          label: "Sự kiện này và các sự kiện tiếp theo",
+          scope: "thisAndFollowing",
+          disabled: !canDeleteSeries,
+        },
+        {
+          label: "Tất cả sự kiện",
+          scope: "entireSeries",
+          disabled: !canDeleteSeries,
+        },
+      ]
+    : [{ label: "Lịch học này", scope: "thisEvent" }];
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-[#2d211b]/45 px-3 py-4">
+      <section className="w-full max-w-md rounded-[2rem] border border-[#ead8ca] bg-[#fffaf6] p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-[#a43d2d]">Xóa lịch</p>
+            <h2 className="mt-2 text-2xl font-extrabold text-[#3e2d24]">
+              {isFixed ? "Xóa sự kiện định kỳ" : "Xóa lịch học"}
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-[#725e51]">
+              {getScheduleEventLabel(event)} · {event.occurrenceDate} · {formatHourValue(event.startHour)}
+            </p>
+          </div>
+          <button
+            aria-label="Đóng"
+            className="grid size-10 shrink-0 place-items-center rounded-full border border-[#d9bda8] text-xl font-bold text-[#6f4b34]"
+            disabled={deleting}
+            onClick={onClose}
+            type="button"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {options.map((option) => (
+            <label
+              className={`flex items-start gap-3 rounded-2xl border p-3 transition ${
+                option.disabled
+                  ? "cursor-not-allowed border-[#eadfd6] bg-[#eee8e2] text-[#a89587]"
+                  : scope === option.scope
+                    ? "cursor-pointer border-[#bd8060] bg-white text-[#4c372c]"
+                    : "cursor-pointer border-[#eadfd6] bg-white text-[#725e51]"
+              }`}
+              key={option.scope}
+            >
+              <input
+                checked={scope === option.scope}
+                className="mt-0.5 size-5 accent-[#a36c45]"
+                disabled={option.disabled || deleting}
+                name="lesson-delete-scope"
+                onChange={() => setScope(option.scope)}
+                type="radio"
+              />
+              <span className="text-sm font-bold leading-5">{option.label}</span>
+            </label>
+          ))}
+        </div>
+
+        {isFixed && !canDeleteSeries ? (
+          <p className="mt-3 rounded-2xl bg-[#fff0dc] p-3 text-xs font-semibold leading-5 text-[#8a5b3c]">
+            Lịch cũ chưa có mã chuỗi định kỳ. Hãy chạy migration 004; hiện tại chỉ có thể xóa sự kiện này.
+          </p>
+        ) : null}
+
+        <p className="mt-4 text-xs font-semibold leading-5 text-[#8b6a58]">
+          Hệ thống sẽ không xóa nếu bất kỳ lịch nào trong phạm vi đã chọn đã có lịch sử điểm danh.
+        </p>
+
+        {error ? (
+          <p className="mt-3 rounded-2xl border border-[#efb4aa] bg-[#fff0ed] p-3 text-sm font-bold text-[#a43d2d]" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            className="h-11 rounded-full px-5 text-sm font-extrabold text-[#8a5b3c]"
+            disabled={deleting}
+            onClick={onClose}
+            type="button"
+          >
+            Hủy
+          </button>
+          <button
+            className="h-11 rounded-full bg-[#a43d2d] px-6 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={deleting}
+            onClick={() => onDelete(scope)}
+            type="button"
+          >
+            {deleting ? "Đang kiểm tra..." : "Xóa"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function CustomRecurrenceModal({
   form,
   onClose,
@@ -1956,7 +2172,7 @@ function CustomRecurrenceModal({
   onDone: (recurrence: CustomRecurrenceState) => void;
 }) {
   const [recurrence, setRecurrence] = useState<CustomRecurrenceState>(() => ({
-    repeatIntervalWeeks: form.repeatIntervalWeeks,
+    repeatWeeks: form.repeatWeeks,
     repeatWeekdays: [...form.repeatWeekdays],
     repeatEndType: form.repeatEndType,
     repeatEndDate: form.repeatEndDate,
@@ -1964,12 +2180,15 @@ function CustomRecurrenceModal({
   }));
 
   const canSave =
-    recurrence.repeatIntervalWeeks >= 1 &&
-    recurrence.repeatIntervalWeeks <= 20 &&
+    recurrence.repeatWeeks >= 1 &&
+    recurrence.repeatWeeks <= 20 &&
     recurrence.repeatWeekdays.length > 0 &&
-    (recurrence.repeatEndType !== "onDate" || recurrence.repeatEndDate >= form.occurrenceDate) &&
+    (recurrence.repeatEndType !== "onDate" ||
+      (recurrence.repeatEndDate >= form.occurrenceDate &&
+        recurrence.repeatEndDate <= addDaysToDateKey(form.occurrenceDate, recurrence.repeatWeeks * 7 - 1))) &&
     (recurrence.repeatEndType !== "afterOccurrences" ||
-      (recurrence.repeatOccurrenceCount >= 1 && recurrence.repeatOccurrenceCount <= 500));
+      (recurrence.repeatOccurrenceCount >= 1 &&
+        recurrence.repeatOccurrenceCount <= recurrence.repeatWeeks * recurrence.repeatWeekdays.length));
 
   function toggleWeekday(day: number) {
     setRecurrence((current) => ({
@@ -2000,22 +2219,32 @@ function CustomRecurrenceModal({
 
         <div className="mt-6 grid gap-6">
           <label className="grid gap-2 text-sm font-extrabold text-[#6f4b34]">
-            Lặp lại mỗi
+            Lặp lại trong
             <span className="flex items-center gap-3">
               <input
                 className="h-11 w-28 rounded-2xl border border-[#e3d6ca] bg-white px-4 text-center text-sm font-bold outline-none focus:border-[#a36c45] focus:ring-2 focus:ring-[#f2dfcf]"
                 max={20}
                 min={1}
                 onChange={(event) =>
-                  setRecurrence((current) => ({ ...current, repeatIntervalWeeks: Number(event.target.value) }))
+                  setRecurrence((current) => {
+                    const repeatWeeks = Number(event.target.value);
+                    return {
+                      ...current,
+                      repeatWeeks,
+                      repeatEndDate:
+                        current.repeatEndType === "afterWeeks"
+                          ? addDaysToDateKey(form.occurrenceDate, repeatWeeks * 7 - 1)
+                          : current.repeatEndDate,
+                    };
+                  })
                 }
                 required
                 type="number"
-                value={recurrence.repeatIntervalWeeks}
+                value={recurrence.repeatWeeks}
               />
               <span className="font-semibold text-[#5f4638]">tuần</span>
             </span>
-            <span className="text-xs font-semibold text-[#8b6a58]">Khoảng lặp tối đa là 20 tuần.</span>
+            <span className="text-xs font-semibold text-[#8b6a58]">Các buổi được tạo hằng tuần, tối đa trong 20 tuần.</span>
           </label>
 
           <div>
@@ -2046,11 +2275,11 @@ function CustomRecurrenceModal({
           <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-extrabold text-[#6f4b34]">Kết thúc</legend>
             <RecurrenceEndOption
-              checked={recurrence.repeatEndType === "never"}
-              label="Không bao giờ"
-              onChange={() => setRecurrence((current) => ({ ...current, repeatEndType: "never" }))}
+              checked={recurrence.repeatEndType === "afterWeeks"}
+              label="Theo số tuần"
+              onChange={() => setRecurrence((current) => ({ ...current, repeatEndType: "afterWeeks" }))}
             >
-              <span className="text-xs font-semibold text-[#8b6a58]">Hệ thống tạo trước các buổi trong phạm vi 20 tuần.</span>
+              <span className="text-xs font-semibold text-[#8b6a58]">Kết thúc sau {recurrence.repeatWeeks} tuần đã chọn.</span>
             </RecurrenceEndOption>
             <RecurrenceEndOption
               checked={recurrence.repeatEndType === "onDate"}
@@ -2060,6 +2289,7 @@ function CustomRecurrenceModal({
               <input
                 className="h-10 rounded-xl border border-[#e3d6ca] bg-white px-3 text-sm font-semibold disabled:bg-[#eee7e1]"
                 disabled={recurrence.repeatEndType !== "onDate"}
+                max={addDaysToDateKey(form.occurrenceDate, recurrence.repeatWeeks * 7 - 1)}
                 min={form.occurrenceDate}
                 onChange={(event) => setRecurrence((current) => ({ ...current, repeatEndDate: event.target.value }))}
                 onClick={(event) => event.currentTarget.showPicker?.()}
@@ -2076,7 +2306,7 @@ function CustomRecurrenceModal({
                 <input
                   className="h-10 w-24 rounded-xl border border-[#e3d6ca] bg-white px-3 text-center font-bold disabled:bg-[#eee7e1]"
                   disabled={recurrence.repeatEndType !== "afterOccurrences"}
-                  max={500}
+                  max={Math.max(1, recurrence.repeatWeeks * recurrence.repeatWeekdays.length)}
                   min={1}
                   onChange={(event) =>
                     setRecurrence((current) => ({ ...current, repeatOccurrenceCount: Number(event.target.value) }))

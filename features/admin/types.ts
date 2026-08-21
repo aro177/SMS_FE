@@ -22,6 +22,7 @@ export type ScheduleEvent = {
   status: "confirmed" | "draft" | "conflict";
   takeAttendanceStatus: boolean;
   repeatType: "fixed" | "temporary";
+  seriesId?: string | null;
   color: string;
 };
 
@@ -44,6 +45,7 @@ export type Lesson = {
   code: string;
   takeAttendanceStatus: boolean;
   repeatStatus?: number | string | null;
+  seriesId?: string | null;
 };
 
 export type LessonAttendanceDetail = {
